@@ -138,6 +138,13 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-bottom: 12px;
 }
 
+.key-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .chord-input {
   width: 100%;
   padding: 8px 10px;

@@ -218,6 +218,10 @@ function App() {
       if (e.key === 'ArrowLeft') { e.preventDefault(); handleTranspose(-1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); handleTranspose(1); }
       else if (e.key === ' ') { e.preventDefault(); handlePlay(); }
+      else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        setNotation(prev => prev === 'notes' ? 'degrees' : 'notes');
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -292,8 +296,21 @@ function App() {
         )}
       </section>
 
+      <section className="key-section">
+        <div className="ctrl">
+          <label>Key</label>
+          <select
+            value={displayedKey}
+            onChange={(e) => handleKeyChange(parseInt(e.target.value, 10))}
+          >
+            {KEY_NAMES.map((n, i) => (
+              <option key={i} value={i}>{n}</option>
+            ))}
+          </select>
+        </div>
+      </section>
+
       <section className="chord-input-section">
-        <label className="section-label">Chords</label>
         <textarea
           className="chord-input"
           value={currentSong.chordsRaw}
@@ -329,31 +346,6 @@ function App() {
           <button onClick={handleTap} title="Tap tempo">TAP</button>
         </div>
 
-        <div className="ctrl">
-          <label>Key</label>
-          <select
-            value={displayedKey}
-            onChange={(e) => handleKeyChange(parseInt(e.target.value, 10))}
-          >
-            {KEY_NAMES.map((n, i) => (
-              <option key={i} value={i}>{n}</option>
-            ))}
-          </select>
-          <button onClick={() => handleTranspose(-1)} title="Semitone down (←)">♭</button>
-          <button onClick={() => handleTranspose(1)} title="Semitone up (→)">♯</button>
-        </div>
-
-        <div className="ctrl notation-toggle" role="group" aria-label="Notation">
-          <button
-            className={notation === 'notes' ? 'active' : ''}
-            onClick={() => setNotation('notes')}
-          >Notes</button>
-          <button
-            className={notation === 'degrees' ? 'active' : ''}
-            onClick={() => setNotation('degrees')}
-          >Degrees</button>
-        </div>
-
         <div className="ctrl volume-ctrl">
           <label>Vol</label>
           <input
@@ -365,6 +357,17 @@ function App() {
             aria-label="Volume"
           />
           <span className="volume-value">{volume}</span>
+        </div>
+
+        <div className="ctrl notation-toggle" role="group" aria-label="Notation">
+          <button
+            className={notation === 'degrees' ? 'active' : ''}
+            onClick={() => setNotation('degrees')}
+          >Degrees</button>
+          <button
+            className={notation === 'notes' ? 'active' : ''}
+            onClick={() => setNotation('notes')}
+          >Notes</button>
         </div>
 
         <div className="ctrl">
@@ -421,7 +424,7 @@ function App() {
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>
         <div>Repeats: <code>%</code> (same as previous bar) / <code>%%</code> (same as bar two back) / <code>.</code> (repeat previous chord within the same bar, e.g. <code>|Bb13 . . E9|</code>)</div>
         <div>Drag across bars to set a loop range. During playback, drag also stops. Count-in skipped while loop is active.</div>
-        <div>Shortcuts: <code>←</code>/<code>→</code> transpose ± semitone / <code>Space</code> play</div>
+        <div>Shortcuts: <code>←</code>/<code>→</code> transpose ± semitone / <code>Space</code> play / <code>N</code> toggle Notes/Degrees</div>
         <div>Current key: <strong>{noteLabel(displayedKey, prefer)}</strong> (transpose {currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
       </footer>
     </div>
