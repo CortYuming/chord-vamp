@@ -244,6 +244,37 @@ function App() {
     setTheme(cur === 'dark' ? 'light' : 'dark');
   };
 
+  const [copyUrlLabel, setCopyUrlLabel] = useState('🔗 URL');
+  const [copyMdLabel, setCopyMdLabel] = useState('📝 MD');
+
+  const handleCopyURL = () => {
+    navigator.clipboard
+      ?.writeText(window.location.href)
+      .then(() => {
+        setCopyUrlLabel('✓ Copied');
+        setTimeout(() => setCopyUrlLabel('🔗 URL'), 1400);
+      })
+      .catch(() => {
+        setCopyUrlLabel('(failed)');
+        setTimeout(() => setCopyUrlLabel('🔗 URL'), 1400);
+      });
+  };
+
+  const handleCopyMarkdown = () => {
+    const label = currentSong.name.trim() || 'Chord Vamp';
+    const md = `[${label}](${window.location.href})`;
+    navigator.clipboard
+      ?.writeText(md)
+      .then(() => {
+        setCopyMdLabel('✓ Copied');
+        setTimeout(() => setCopyMdLabel('📝 MD'), 1400);
+      })
+      .catch(() => {
+        setCopyMdLabel('(failed)');
+        setTimeout(() => setCopyMdLabel('📝 MD'), 1400);
+      });
+  };
+
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const handleTap = () => {
     const now = performance.now();
@@ -265,6 +296,18 @@ function App() {
       <header className="header">
         <h1 className="brand">🎷 Chord Vamp</h1>
         <div className="header-actions">
+          <button
+            className="icon-btn"
+            onClick={handleCopyURL}
+            disabled={!isInList}
+            title={isInList ? 'Copy link to this song' : 'Save the song first to get a shareable link'}
+          >{copyUrlLabel}</button>
+          <button
+            className="icon-btn"
+            onClick={handleCopyMarkdown}
+            disabled={!isInList}
+            title={isInList ? 'Copy Markdown link' : 'Save the song first to get a shareable link'}
+          >{copyMdLabel}</button>
           <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">◐</button>
         </div>
       </header>

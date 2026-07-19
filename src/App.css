@@ -34,7 +34,9 @@
   font-size: 14px;
 }
 
-.icon-btn:hover { background: rgba(128, 128, 128, 0.1); }
+.icon-btn:hover:not(:disabled) { background: rgba(128, 128, 128, 0.1); }
+
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 button {
   border: 1px solid var(--muted);
