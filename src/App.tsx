@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { KEY_NAMES, keyPreferFor, noteLabel, parseSong } from './chord';
-import { ChordGrid, type Notation } from './components/ChordGrid';
+import { ChordGrid } from './components/ChordGrid';
 import { useSongs } from './hooks/useSongs';
 import { Player } from './player';
 import * as Tone from 'tone';
@@ -31,7 +31,6 @@ function App() {
   const [loopEnd, setLoopEnd] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
-  const [notation, setNotation] = useState<Notation>('notes');
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
 
@@ -218,10 +217,6 @@ function App() {
       if (e.key === 'ArrowLeft') { e.preventDefault(); handleTranspose(-1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); handleTranspose(1); }
       else if (e.key === ' ') { e.preventDefault(); handlePlay(); }
-      else if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        setNotation(prev => prev === 'notes' ? 'degrees' : 'notes');
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -359,17 +354,6 @@ function App() {
           <span className="volume-value">{volume}</span>
         </div>
 
-        <div className="ctrl notation-toggle" role="group" aria-label="Notation">
-          <button
-            className={notation === 'degrees' ? 'active' : ''}
-            onClick={() => setNotation('degrees')}
-          >Degrees</button>
-          <button
-            className={notation === 'notes' ? 'active' : ''}
-            onClick={() => setNotation('notes')}
-          >Notes</button>
-        </div>
-
         <div className="ctrl">
           <label>
             <input
@@ -410,7 +394,6 @@ function App() {
         measures={parsed.measures}
         transpose={currentSong.transpose}
         prefer={prefer}
-        notation={notation}
         keyRoot={displayedKey}
         currentMeasure={currentMeasure}
         loopStart={loopStart}
@@ -424,7 +407,7 @@ function App() {
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>
         <div>Repeats: <code>%</code> (same as previous bar) / <code>%%</code> (same as bar two back) / <code>.</code> (repeat previous chord within the same bar, e.g. <code>|Bb13 . . E9|</code>)</div>
         <div>Drag across bars to set a loop range. During playback, drag also stops. Count-in skipped while loop is active.</div>
-        <div>Shortcuts: <code>←</code>/<code>→</code> transpose ± semitone / <code>Space</code> play / <code>N</code> toggle Notes/Degrees</div>
+        <div>Shortcuts: <code>←</code>/<code>→</code> transpose ± semitone / <code>Space</code> play</div>
         <div>Current key: <strong>{noteLabel(displayedKey, prefer)}</strong> (transpose {currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
       </footer>
     </div>

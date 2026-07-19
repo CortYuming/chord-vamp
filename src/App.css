@@ -250,29 +250,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   text-align: right;
 }
 
-.notation-toggle {
-  display: inline-flex;
-  border: 1px solid var(--muted);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.notation-toggle button {
-  border: none;
-  border-radius: 0;
-  padding: 4px 12px;
-  background: transparent;
-}
-
-.notation-toggle button + button {
-  border-left: 1px solid var(--muted);
-}
-
-.notation-toggle button.active {
-  background: var(--accent);
-  color: var(--paper);
-}
-
 .chord-grid {
   display: flex;
   flex-direction: column;
@@ -335,15 +312,35 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .chord-row {
   display: flex;
   gap: 28px;
-  align-items: baseline;
+  align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
 }
 
 .chord {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-family: 'Georgia', 'Times New Roman', 'YuMincho', serif;
+}
+
+.chord-degree {
   font-size: 22px;
   font-weight: 500;
-  font-family: 'Georgia', 'Times New Roman', 'YuMincho', serif;
+  color: var(--muted);
+  line-height: 1.1;
+  min-height: 24px;
+}
+
+.chord-note {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.measure-current .chord-degree {
+  color: rgba(32, 29, 24, 0.7);
 }
 
 .chord-repeat {

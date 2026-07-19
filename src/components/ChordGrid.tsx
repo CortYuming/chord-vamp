@@ -1,13 +1,10 @@
 import type { Measure, Chord, Accidental } from '../chord';
 import { chordToString, chordToDegree } from '../chord';
 
-export type Notation = 'notes' | 'degrees';
-
 interface Props {
   measures: Measure[];
   transpose: number;
   prefer: Accidental;
-  notation: Notation;
   keyRoot: number;
   currentMeasure: number;
   loopStart: number | null;
@@ -49,15 +46,14 @@ function SimileMark({ variant }: { variant: 'single' | 'double' }) {
   );
 }
 
-function displayChord(
+function chordLines(
   chord: Chord,
   transpose: number,
   prefer: Accidental,
-  notation: Notation,
   keyRoot: number,
-): string {
-  if (chord.root === null) return chord.raw;
-  if (notation === 'degrees') return chordToDegree(chord, keyRoot, transpose);
+): { degree: string; note: string } {
+  if (chord.root === null) return { degree: '', note: chord.raw };
+  const degree = chordToDegree(chord, keyRoot, transpose);
   const shifted: Chord = {
     ...chord,
     root: (((chord.root + transpose) % 12) + 12) % 12,
@@ -65,14 +61,14 @@ function displayChord(
       ? (((chord.bass + transpose) % 12) + 12) % 12
       : null,
   };
-  return chordToString(shifted, prefer);
+  const note = chordToString(shifted, prefer);
+  return { degree, note };
 }
 
 export function ChordGrid({
   measures,
   transpose,
   prefer,
-  notation,
   keyRoot,
   currentMeasure,
   loopStart,
@@ -136,9 +132,15 @@ export function ChordGrid({
                         /
                       </span>
                     ) : (
-                      <span key={idx} className="chord">
-                        {displayChord(c, transpose, prefer, notation, keyRoot)}
-                      </span>
+                      (() => {
+                        const { degree, note } = chordLines(c, transpose, prefer, keyRoot);
+                        return (
+                          <span key={idx} className="chord">
+                            <span className="chord-degree">{degree || ' '}</span>
+                            <span className="chord-note">{note}</span>
+                          </span>
+                        );
+                      })()
                     )
                   ))}
                 </span>
