@@ -5,13 +5,18 @@ import { ChordGrid } from './components/ChordGrid';
 import { useSongs } from './hooks/useSongs';
 import { Player } from './player';
 import * as Tone from 'tone';
-import { loadCurrent, loadPrefs, newSong, saveCurrent, savePrefs, type Song } from './storage';
+import { loadCurrent, loadPrefs, loadSongs, newSong, saveCurrent, savePrefs, type Song } from './storage';
 
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
 function App() {
   const { songs, upsert, remove } = useSongs();
   const [currentSong, setCurrentSong] = useState<Song>(() => {
+    const songId = new URLSearchParams(window.location.search).get('song');
+    if (songId) {
+      const found = loadSongs().find(s => s.id === songId);
+      if (found) return found;
+    }
     const saved = loadCurrent();
     if (saved) return saved;
     return newSong({
@@ -152,6 +157,18 @@ function App() {
   const canSave = isDirty && nameTrimmed.length > 0;
   const isInList = savedVersion !== null;
   const nameInvalid = isDirty && !nameTrimmed;
+
+  // Keep the ?song=<id> URL param in sync so a saved song is deep-linkable
+  // (survives renames since it uses the stable id, not the title).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (isInList) {
+      url.searchParams.set('song', currentSong.id);
+    } else {
+      url.searchParams.delete('song');
+    }
+    window.history.replaceState(null, '', url);
+  }, [isInList, currentSong.id]);
 
   const handleSave = () => {
     if (!canSave) return;
