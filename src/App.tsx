@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { KEY_NAMES, keyPreferFor, noteLabel, parseSong } from './chord';
 import { ChordGrid } from './components/ChordGrid';
+import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
 import { Player } from './player';
 import * as Tone from 'tone';
@@ -11,6 +12,11 @@ const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|
 
 function App() {
   const { songs, upsert, remove } = useSongs();
+  // The note grid is a second reading of the same sheet, off by default: it is
+  // for studying what the chords are made of, not for playing from.
+  const [showNotes, setShowNotes] = useState(false);
+  const [noteMode, setNoteMode] = useState<NoteLabelMode>('interval');
+  const [noteSel, setNoteSel] = useState<number | null>(null);
   const [currentSong, setCurrentSong] = useState<Song>(() => {
     const songId = new URLSearchParams(window.location.search).get('song');
     if (songId) {
@@ -462,6 +468,38 @@ function App() {
         onMeasureEnter={handleMeasureEnter}
         onGridUp={handleGridUp}
       />
+
+      <section className="note-grid-controls">
+        <button onClick={() => setShowNotes((v) => !v)}>
+          {showNotes ? 'Hide notes' : 'Show notes'}
+        </button>
+        {showNotes && (
+          <div className="ctrl">
+            <label>Label</label>
+            <select
+              value={noteMode}
+              onChange={(e) => setNoteMode(e.target.value as NoteLabelMode)}
+            >
+              <option value="note">Notes</option>
+              <option value="interval">Intervals</option>
+              <option value="solfa">Solfege</option>
+            </select>
+          </div>
+        )}
+      </section>
+
+      {showNotes && (
+        <NoteGrid
+          measures={parsed.measures}
+          transpose={currentSong.transpose}
+          prefer={prefer}
+          keyRoot={displayedKey}
+          mode={noteMode}
+          currentMeasure={currentMeasure}
+          selected={noteSel}
+          onSelect={setNoteSel}
+        />
+      )}
 
       <footer className="footer">
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>

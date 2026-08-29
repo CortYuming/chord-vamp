@@ -191,3 +191,13 @@ export function degreeLabel(semi: number, quality: string): string {
   if (s === 8 && !tones.includes(3)) return '♯5';
   return DEGREE[s];
 }
+
+// Movable-do solfege, indexed by semitones above whatever is being called do.
+// The same two tables guitar-chord-viewer and yt-loop use, so a note read in
+// one app is spelled the same here. Naturals are one letter and altered
+// syllables two, so the length of a label says whether the note is bent.
+export const SOLFEGE_SHARP = ['d', 'di', 'r', 'ri', 'm', 'f', 'fi', 's', 'si', 'l', 'li', 't'];
+export const SOLFEGE_FLAT = ['d', 'ro', 'r', 'mo', 'm', 'f', 'sw', 's', 'lo', 'l', 'to', 't'];
+
+// Degrees counted from the key rather than from a chord, for the row labels.
+export const KEY_DEGREE = ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
