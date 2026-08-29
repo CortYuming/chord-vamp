@@ -7,7 +7,8 @@ import {
   SOLFEGE_SHARP, SOLFEGE_FLAT, KEY_DEGREE,
 } from '../tones';
 
-export type NoteLabelMode = 'note' | 'interval' | 'solfa';
+export type { NoteLabelMode } from '../storage';
+import type { NoteLabelMode } from '../storage';
 
 interface Props {
   measures: Measure[];

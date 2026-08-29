@@ -20,8 +20,8 @@ function App() {
   const { songs, upsert, remove } = useSongs();
   // The note grid is a second reading of the same sheet, off by default: it is
   // for studying what the chords are made of, not for playing from.
-  const [showNotes, setShowNotes] = useState(false);
-  const [noteMode, setNoteMode] = useState<NoteLabelMode>('interval');
+  const [showNotes, setShowNotes] = useState(() => loadPrefs().showAnalysis);
+  const [noteMode, setNoteMode] = useState<NoteLabelMode>(() => loadPrefs().noteMode);
   const [noteSel, setNoteSel] = useState<number | null>(null);
   const [currentSong, setCurrentSong] = useState<Song>(() => {
     const songId = new URLSearchParams(window.location.search).get('song');
@@ -52,10 +52,10 @@ function App() {
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
 
   useEffect(() => {
-    savePrefs({ volume, swing, theme });
+    savePrefs({ volume, swing, theme, showAnalysis: showNotes, noteMode });
     const db = volume <= 0 ? -Infinity : 20 * Math.log10(volume / 100);
     Tone.getDestination().volume.rampTo(db, 0.05);
-  }, [volume, swing, theme]);
+  }, [volume, swing, theme, showNotes, noteMode]);
 
   useEffect(() => {
     if (isPlaying) playerRef.current?.setSwing(swing);
