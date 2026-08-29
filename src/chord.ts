@@ -139,6 +139,20 @@ function isMinorish(quality: string): boolean {
   return false;
 }
 
+// The roman numeral on its own, without the quality glued to it. The note grid
+// prints the chord name and its degree on two lines, so it needs the halves
+// separately -- chordToDegree returns them already joined.
+export function chordDegreeRoot(
+  chord: Chord,
+  keyRoot: number,
+  transpose: number,
+): string {
+  if (chord.root === null) return '';
+  const shift = (((chord.root + transpose - keyRoot) % 12) + 12) % 12;
+  const deg = DEGREE_LABELS[shift];
+  return isMinorish(chord.quality) ? deg.toLowerCase() : deg;
+}
+
 export function chordToDegree(
   chord: Chord,
   keyRoot: number,

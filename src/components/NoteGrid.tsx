@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
-import { noteLabel } from '../chord';
+import { chordDegreeRoot, noteLabel } from '../chord';
 import { expandSong } from '../player';
 import {
   chordTones, scaleFor, degreeLabel,
@@ -63,8 +63,8 @@ export function NoteGrid({
 
   // Follow the playhead. The strip is wider than the screen by design, so a
   // bar past the right edge would otherwise be unreachable while playing.
-  // Centred rather than scrolled-into-view, so the bars either side stay
-  // visible -- what is coming next is half the point of watching.
+  // The current bar sits a third in rather than centred: what is coming is
+  // worth more room than what has just gone by.
   const wrapRef = useRef<HTMLDivElement>(null);
   const barEls = useRef(new Map<number, HTMLDivElement>());
   useEffect(() => {
@@ -72,7 +72,7 @@ export function NoteGrid({
     const wrap = wrapRef.current;
     const el = barEls.current.get(currentMeasure);
     if (!wrap || !el) return;
-    const target = el.offsetLeft - wrap.clientWidth / 2 + el.offsetWidth / 2;
+    const target = el.offsetLeft - wrap.clientWidth / 3;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     wrap.scrollTo({
       left: Math.max(0, target),
@@ -128,9 +128,14 @@ export function NoteGrid({
             style={{ gridColumn: `span ${c.span}` }}
             onClick={() => onSelect(i)}
           >
-            {c.chord && c.chord.root !== null
-              ? noteLabel(pc(c.chord.root + transpose), prefer) + c.chord.quality
-              : '·'}
+            <span className="ng-cname">
+              {c.chord && c.chord.root !== null
+                ? noteLabel(pc(c.chord.root + transpose), prefer) + c.chord.quality
+                : '·'}
+            </span>
+            <span className="ng-roman">
+              {c.chord ? chordDegreeRoot(c.chord, keyRoot, transpose) : ''}
+            </span>
           </button>
         ))}
 
