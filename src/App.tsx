@@ -2,15 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { KEY_NAMES, keyPreferFor, noteLabel, parseSong } from './chord';
 import { ChordGrid } from './components/ChordGrid';
+import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
 import { Player } from './player';
 import * as Tone from 'tone';
 import { loadCurrent, loadPrefs, loadSongs, newSong, saveCurrent, savePrefs, type Song } from './storage';
 
+const NOTE_MODES: [NoteLabelMode, string][] = [
+  ['note', 'Notes'],
+  ['interval', 'Intervals'],
+  ['solfa', 'Solfege'],
+];
+
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
 function App() {
   const { songs, upsert, remove } = useSongs();
+  // The note grid is a second reading of the same sheet, off by default: it is
+  // for studying what the chords are made of, not for playing from.
+  const [showNotes, setShowNotes] = useState(() => loadPrefs().showAnalysis);
+  const [noteMode, setNoteMode] = useState<NoteLabelMode>(() => loadPrefs().noteMode);
+  const [noteSel, setNoteSel] = useState<number | null>(null);
   const [currentSong, setCurrentSong] = useState<Song>(() => {
     const songId = new URLSearchParams(window.location.search).get('song');
     if (songId) {
@@ -40,10 +52,10 @@ function App() {
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
 
   useEffect(() => {
-    savePrefs({ volume, swing, theme });
+    savePrefs({ volume, swing, theme, showAnalysis: showNotes, noteMode });
     const db = volume <= 0 ? -Infinity : 20 * Math.log10(volume / 100);
     Tone.getDestination().volume.rampTo(db, 0.05);
-  }, [volume, swing, theme]);
+  }, [volume, swing, theme, showNotes, noteMode]);
 
   useEffect(() => {
     if (isPlaying) playerRef.current?.setSwing(swing);
@@ -462,6 +474,43 @@ function App() {
         onMeasureEnter={handleMeasureEnter}
         onGridUp={handleGridUp}
       />
+
+      <section className="note-grid-controls">
+        <button onClick={() => setShowNotes((v) => !v)}>
+          {showNotes ? 'Hide analysis' : 'Show analysis'}
+        </button>
+        {showNotes && (
+          <div className="ctrl">
+            <label>Label</label>
+            <div className="ng-seg" role="group" aria-label="Note labels">
+              {NOTE_MODES.map(([value, text]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={'ng-seg-btn' + (noteMode === value ? ' active' : '')}
+                  aria-pressed={noteMode === value}
+                  onClick={() => setNoteMode(value)}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {showNotes && (
+        <NoteGrid
+          measures={parsed.measures}
+          transpose={currentSong.transpose}
+          prefer={prefer}
+          keyRoot={displayedKey}
+          mode={noteMode}
+          currentMeasure={currentMeasure}
+          selected={noteSel}
+          onSelect={setNoteSel}
+        />
+      )}
 
       <footer className="footer">
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>

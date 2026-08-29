@@ -13,16 +13,24 @@ const STORAGE_KEY = 'chord-vamp:songs:v1';
 const CURRENT_KEY = 'chord-vamp:current:v1';
 const PREFS_KEY = 'chord-vamp:prefs:v1';
 
+// Lives here rather than beside the component so the stored shape and the
+// component's prop are one definition; NoteGrid re-exports it.
+export type NoteLabelMode = 'note' | 'interval' | 'solfa';
+
 export interface Prefs {
   volume: number;   // 0-100
   swing: boolean;
   theme: 'light' | 'dark' | null;  // null = follow system
+  showAnalysis: boolean;
+  noteMode: NoteLabelMode;
 }
 
 const DEFAULT_PREFS: Prefs = {
   volume: 80,
   swing: false,
-  theme: null,
+  theme: 'light',
+  showAnalysis: false,
+  noteMode: 'interval',
 };
 
 function genId(): string {

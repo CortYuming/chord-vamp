@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  NOTES_FLAT,
+  NOTES_SHARP,
+  chordDegreeRoot,
+  chordToDegree,
+  chordToString,
+  noteLabel,
   parseChord,
   parseSong,
   transposeChord,
-  chordToString,
-  chordToDegree,
-  noteLabel,
-  NOTES_SHARP,
-  NOTES_FLAT,
 } from './chord';
 
 describe('parseChord', () => {
@@ -282,5 +283,31 @@ describe('parseSong', () => {
       expect(s.measures[1].chords).toHaveLength(1);
       expect(s.measures[1].chords[0].raw).toBe('E9');
     }
+  });
+});
+
+describe('chordDegreeRoot', () => {
+  it('gives the numeral without the quality', () => {
+    const bb7 = parseChord('Bb7')!;
+    expect(chordDegreeRoot(bb7, 10, 0)).toBe('I');
+    expect(chordToDegree(bb7, 10, 0)).toBe('I7');
+  });
+
+  it('lowercases a minor chord, as the joined form does', () => {
+    expect(chordDegreeRoot(parseChord('Cm7')!, 10, 0)).toBe('ii');
+    expect(chordDegreeRoot(parseChord('G7#9')!, 10, 0)).toBe('VI');
+  });
+
+  it('reads through a transpose', () => {
+    expect(chordDegreeRoot(parseChord('F7')!, 10, 0)).toBe('V');
+    // +2 puts F on G, which against C is still a fifth.
+    expect(chordDegreeRoot(parseChord('F7')!, 0, 2)).toBe('V');
+  });
+
+  it('holds the degree steady when the key moves with the transpose', () => {
+    // App derives displayedKey from the first chord plus the transpose, so a
+    // transposed song must read as the same numerals it did before.
+    const f7 = parseChord('F7')!;
+    expect(chordDegreeRoot(f7, 10, 0)).toBe(chordDegreeRoot(f7, 0, 2));
   });
 });

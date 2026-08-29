@@ -6,7 +6,15 @@
   --grid-line: #201d18;
   --paper: #fffaf0;
   --active: #f4d35e;
-  --loop: #cae9ff;
+
+  /* Degree hues, lifted from guitar-chord-viewer's App.css so a note read in
+     one app wears the same colour here. Two rules hold them together: an
+     altered degree is a lighter or darker cast of the natural one it alters,
+     and the sevenths and the 13 share the purple family. */
+  --deg-0:  #c8443f; --deg-1:  #7a5029; --deg-2:  #d38838;
+  --deg-3:  #446223; --deg-4:  #6b9838; --deg-5:  #3d9a97;
+  --deg-6:  #7ab3ae; --deg-7:  #3773bd; --deg-8:  #a691ca;
+  --deg-9:  #6c43b2; --deg-10: #a14d99; --deg-11: #c28ebe;
 
   color-scheme: light dark;
   font-family: 'Georgia', 'Times New Roman', 'Hiragino Mincho ProN', 'YuMincho', serif;
@@ -25,6 +33,11 @@
     --paper: #26221c;
     --active: #f4d35e;
     --loop: #3a4a5f;
+
+    --deg-0:  #e57672; --deg-1:  #b07f45; --deg-2:  #e6a45c;
+    --deg-3:  #6d8f45; --deg-4:  #9cc267; --deg-5:  #6ec6c1;
+    --deg-6:  #98c9c4; --deg-7:  #6ea6de; --deg-8:  #c3b4ea;
+    --deg-9:  #9b7ce6; --deg-10: #d888cf; --deg-11: #edbde6;
   }
 }
 
@@ -37,6 +50,15 @@
   --paper: #fffaf0;
   --active: #f4d35e;
   --loop: #cae9ff;
+
+  /* Degree hues, lifted from guitar-chord-viewer's App.css so a note read in
+     one app wears the same colour here. Two rules hold them together: an
+     altered degree is a lighter or darker cast of the natural one it alters,
+     and the sevenths and the 13 share the purple family. */
+  --deg-0:  #c8443f; --deg-1:  #7a5029; --deg-2:  #d38838;
+  --deg-3:  #446223; --deg-4:  #6b9838; --deg-5:  #3d9a97;
+  --deg-6:  #7ab3ae; --deg-7:  #3773bd; --deg-8:  #a691ca;
+  --deg-9:  #6c43b2; --deg-10: #a14d99; --deg-11: #c28ebe;
 }
 
 :root[data-theme='dark'] {
@@ -48,6 +70,11 @@
   --paper: #26221c;
   --active: #f4d35e;
   --loop: #3a4a5f;
+
+  --deg-0:  #e57672; --deg-1:  #b07f45; --deg-2:  #e6a45c;
+  --deg-3:  #6d8f45; --deg-4:  #9cc267; --deg-5:  #6ec6c1;
+  --deg-6:  #98c9c4; --deg-7:  #6ea6de; --deg-8:  #c3b4ea;
+  --deg-9:  #9b7ce6; --deg-10: #d888cf; --deg-11: #edbde6;
 }
 
 * {
