@@ -426,6 +426,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--paper);
   color: var(--muted);
   border: none;
+  /* The heading and the twelve rows are different kinds of information, so
+     the boundary is drawn rather than left to a one-pixel gap. */
+  border-bottom: 1px solid var(--grid-line);
   border-radius: 2px 2px 0 0;
   cursor: pointer;
   white-space: nowrap;
@@ -464,8 +467,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .ng-cell.ng-root { box-shadow: inset 0 0 0 2px var(--bg); }
 .ng-cell.ng-dim { opacity: 0.78; }
 
-/* Every fourth bar starts a phrase; the rule runs the height of the grid. */
-.ng-rule { border-left: 2px solid var(--grid-line); }
+/* Every fourth bar starts a phrase; the rule runs the height of the grid.
+   Held back in colour: it crosses twelve rows, so the same ink that reads as
+   a hairline on the heading reads as a wall down the grid. */
+.ng-rule { border-left: 1.5px dashed color-mix(in srgb, var(--grid-line) 40%, transparent); }
 
 .note-grid-controls {
   display: flex;
