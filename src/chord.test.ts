@@ -11,6 +11,7 @@ import {
   parseSong,
   resolveKeyRoot,
   transposeChord,
+  transposeSong,
 } from './chord';
 
 describe('parseChord', () => {
@@ -349,5 +350,49 @@ describe('resolveKeyRoot', () => {
     const am7b5 = parseChord('Am7b5')!;
     expect(chordDegreeRoot(am7b5, resolveKeyRoot(null, autumnLeaves), 0)).toBe('i');
     expect(chordDegreeRoot(am7b5, resolveKeyRoot(7, autumnLeaves), 0)).toBe('ii');
+  });
+});
+
+describe('transposeSong', () => {
+  it('moves every chord and keeps the bar lines', () => {
+    expect(transposeSong('|F13|Bb9|F13|', 3, 'flat')).toBe('|Ab13|Db9|Ab13|');
+  });
+
+  it('leaves repeats and within-bar dots alone', () => {
+    expect(transposeSong('|C|%|%%|Bb13 . . E9|', 2, 'sharp'))
+      .toBe('|D|%|%%|C13 . . F#9|');
+  });
+
+  it('keeps the spacing and line breaks the user typed', () => {
+    const src = '|C   G|\n|Am  F|';
+    expect(transposeSong(src, 1, 'flat')).toBe('|Db   Ab|\n|Bbm  Gb|');
+  });
+
+  it('spells the result for the key it lands in', () => {
+    expect(transposeSong('|C|', 1, 'flat')).toBe('|Db|');
+    expect(transposeSong('|C|', 1, 'sharp')).toBe('|C#|');
+  });
+
+  it('carries a slash bass along', () => {
+    expect(transposeSong('|C/E|', 5, 'flat')).toBe('|F/A|');
+  });
+
+  it('hands back anything it cannot parse', () => {
+    expect(transposeSong('|N.C.|C|', 2, 'sharp')).toBe('|N.C.|D|');
+    expect(transposeSong('|zzz|C|', 2, 'sharp')).toBe('|zzz|D|');
+  });
+
+  it('is a no-op at zero semitones, spelling aside', () => {
+    expect(transposeSong('|F13|Bb9|', 0, 'flat')).toBe('|F13|Bb9|');
+  });
+
+  it('holds the degrees still, which is the point of a hard transpose', () => {
+    // A blues in F rewritten into Ab: the numerals must not budge.
+    const src = '|F13|Bb9|F13|D7#9|';
+    const moved = transposeSong(src, 3, 'flat');
+    const degrees = (text: string, key: number) =>
+      parseSong(text).measures.flatMap(m =>
+        m.kind === 'chords' ? m.chords.map(c => chordDegreeRoot(c, key, 0)) : []);
+    expect(degrees(moved, 8)).toEqual(degrees(src, 5));
   });
 });

@@ -127,6 +127,21 @@ export function transposeChord(input: string, semitones: number, prefer: Acciden
   return chordToString(transposed, prefer);
 }
 
+// Hard transposition: rewrites the sheet text itself, the way iReal Pro's
+// "Set and Transpose" rewrites a chart. Only chord tokens are touched -- bar
+// lines, repeats, line breaks and the user's own spacing survive byte for
+// byte, since anything unparsable is handed back unchanged.
+export function transposeSong(
+  text: string,
+  semitones: number,
+  prefer: Accidental,
+): string {
+  return text.replace(/[^\s|]+/g, (token) => {
+    if (token === '%' || token === '%%' || token === '.') return token;
+    return transposeChord(token, semitones, prefer);
+  });
+}
+
 const DEGREE_LABELS = [
   'I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII',
 ] as const;
