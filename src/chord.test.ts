@@ -4,10 +4,12 @@ import {
   NOTES_SHARP,
   chordDegreeRoot,
   chordToDegree,
+  firstChordRoot,
   chordToString,
   noteLabel,
   parseChord,
   parseSong,
+  resolveKeyRoot,
   transposeChord,
 } from './chord';
 
@@ -309,5 +311,43 @@ describe('chordDegreeRoot', () => {
     // transposed song must read as the same numerals it did before.
     const f7 = parseChord('F7')!;
     expect(chordDegreeRoot(f7, 10, 0)).toBe(chordDegreeRoot(f7, 0, 2));
+  });
+});
+
+describe('firstChordRoot', () => {
+  it('takes the root of the opening chord', () => {
+    expect(firstChordRoot(parseSong('|F13|Bb9|').measures)).toBe(5);
+  });
+
+  it('skips a measure that carries no rooted chord', () => {
+    expect(firstChordRoot(parseSong('|N.C.|Bb9|').measures)).toBe(10);
+  });
+
+  it('falls back on C when nothing has a root', () => {
+    expect(firstChordRoot(parseSong('|N.C.|').measures)).toBe(0);
+  });
+});
+
+describe('resolveKeyRoot', () => {
+  const autumnLeaves = parseSong('|Am7b5|D7|Gm7|Gm7|').measures;
+
+  it('infers the tonic from the first chord when none is pinned', () => {
+    expect(resolveKeyRoot(null, autumnLeaves)).toBe(9);
+    expect(resolveKeyRoot(undefined, autumnLeaves)).toBe(9);
+  });
+
+  it('honours a pinned tonic over the first chord', () => {
+    // The tune is in G minor even though it opens on iim7b5.
+    expect(resolveKeyRoot(7, autumnLeaves)).toBe(7);
+  });
+
+  it('treats a pinned C as a pin, not as absent', () => {
+    expect(resolveKeyRoot(0, autumnLeaves)).toBe(0);
+  });
+
+  it('turns the opening chord into i once the tonic is pinned', () => {
+    const am7b5 = parseChord('Am7b5')!;
+    expect(chordDegreeRoot(am7b5, resolveKeyRoot(null, autumnLeaves), 0)).toBe('i');
+    expect(chordDegreeRoot(am7b5, resolveKeyRoot(7, autumnLeaves), 0)).toBe('ii');
   });
 });

@@ -168,6 +168,27 @@ export function chordToDegree(
   return deg + chord.quality + bassStr;
 }
 
+// The root of the first chord that has one. Stands in for the key when the
+// user has not pinned one: right for a blues that starts on I, wrong for a
+// tune like Autumn Leaves that starts on iim7b5.
+export function firstChordRoot(measures: Measure[]): number {
+  for (const m of measures) {
+    if (m.kind === 'chords') {
+      for (const c of m.chords) if (c.root !== null) return c.root;
+    }
+  }
+  return 0;
+}
+
+// The tonic the sheet is read against, before transposition. A pinned keyRoot
+// wins; 0 (C) is a real answer, so only null/undefined falls back.
+export function resolveKeyRoot(
+  keyRoot: number | null | undefined,
+  measures: Measure[],
+): number {
+  return keyRoot ?? firstChordRoot(measures);
+}
+
 export function parseSong(text: string): Song {
   const errors: string[] = [];
   const measures: Measure[] = [];

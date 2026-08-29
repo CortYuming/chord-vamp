@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
-import { KEY_NAMES, keyPreferFor, noteLabel, parseSong } from './chord';
+import { KEY_NAMES, keyPreferFor, noteLabel, parseSong, resolveKeyRoot } from './chord';
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
@@ -81,20 +81,19 @@ function App() {
     setCurrentSong(prev => ({ ...prev, ...patch }));
   }, []);
 
-  const firstChordRoot = useMemo(() => {
-    for (const m of parsed.measures) {
-      if (m.kind === 'chords') {
-        for (const c of m.chords) if (c.root !== null) return c.root;
-      }
-    }
-    return 0;
-  }, [parsed]);
-
-  const displayedKey = (((firstChordRoot + currentSong.transpose) % 12) + 12) % 12;
+  // Written key: what the sheet says, before transposition.
+  const tonicRoot = useMemo(
+    () => resolveKeyRoot(currentSong.keyRoot, parsed.measures),
+    [currentSong.keyRoot, parsed],
+  );
+  // Sounding key: what comes out of the speakers.
+  const displayedKey = (((tonicRoot + currentSong.transpose) % 12) + 12) % 12;
   const prefer = keyPreferFor(displayedKey);
 
+  // Picking a key transposes the song; it does not change how the sheet is
+  // read. Pinning the tonic is the other control.
   const handleKeyChange = (targetKey: number) => {
-    const diff = ((targetKey - firstChordRoot) % 12 + 12) % 12;
+    const diff = ((targetKey - tonicRoot) % 12 + 12) % 12;
     const shortest = diff > 6 ? diff - 12 : diff;
     update({ transpose: shortest });
   };
@@ -162,6 +161,7 @@ function App() {
       savedVersion.chordsRaw !== currentSong.chordsRaw ||
       savedVersion.bpm !== currentSong.bpm ||
       savedVersion.transpose !== currentSong.transpose ||
+      (savedVersion.keyRoot ?? null) !== (currentSong.keyRoot ?? null) ||
       savedVersion.countIn !== currentSong.countIn
     );
   }, [savedVersion, currentSong]);

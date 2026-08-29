@@ -4,6 +4,10 @@ export interface Song {
   chordsRaw: string;
   bpm: number;
   transpose: number;    // semitones applied on top of chordsRaw
+  // Tonic the sheet is analysed against, before transposition.
+  // null = infer it from the first chord. Older saved songs lack the
+  // field entirely, which reads as null.
+  keyRoot: number | null;
   countIn: boolean;
   createdAt: number;
   updatedAt: number;
@@ -67,6 +71,7 @@ export function newSong(partial: Partial<Song> = {}): Song {
     chordsRaw: partial.chordsRaw ?? '',
     bpm: partial.bpm ?? 85,
     transpose: partial.transpose ?? 0,
+    keyRoot: partial.keyRoot ?? null,
     countIn: partial.countIn ?? true,
     createdAt: partial.createdAt ?? now,
     updatedAt: partial.updatedAt ?? now,
