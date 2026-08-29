@@ -127,6 +127,21 @@ export function transposeChord(input: string, semitones: number, prefer: Acciden
   return chordToString(transposed, prefer);
 }
 
+// Hard transposition: rewrites the sheet text itself, the way iReal Pro's
+// "Set and Transpose" rewrites a chart. Only chord tokens are touched -- bar
+// lines, repeats, line breaks and the user's own spacing survive byte for
+// byte, since anything unparsable is handed back unchanged.
+export function transposeSong(
+  text: string,
+  semitones: number,
+  prefer: Accidental,
+): string {
+  return text.replace(/[^\s|]+/g, (token) => {
+    if (token === '%' || token === '%%' || token === '.') return token;
+    return transposeChord(token, semitones, prefer);
+  });
+}
+
 const DEGREE_LABELS = [
   'I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII',
 ] as const;
@@ -166,6 +181,27 @@ export function chordToDegree(
     ? '/' + DEGREE_LABELS[shift(chord.bass)]
     : '';
   return deg + chord.quality + bassStr;
+}
+
+// The root of the first chord that has one. Stands in for the key when the
+// user has not pinned one: right for a blues that starts on I, wrong for a
+// tune like Autumn Leaves that starts on iim7b5.
+export function firstChordRoot(measures: Measure[]): number {
+  for (const m of measures) {
+    if (m.kind === 'chords') {
+      for (const c of m.chords) if (c.root !== null) return c.root;
+    }
+  }
+  return 0;
+}
+
+// The tonic the sheet is read against, before transposition. A pinned keyRoot
+// wins; 0 (C) is a real answer, so only null/undefined falls back.
+export function resolveKeyRoot(
+  keyRoot: number | null | undefined,
+  measures: Measure[],
+): number {
+  return keyRoot ?? firstChordRoot(measures);
 }
 
 export function parseSong(text: string): Song {

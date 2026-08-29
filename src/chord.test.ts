@@ -4,11 +4,14 @@ import {
   NOTES_SHARP,
   chordDegreeRoot,
   chordToDegree,
+  firstChordRoot,
   chordToString,
   noteLabel,
   parseChord,
   parseSong,
+  resolveKeyRoot,
   transposeChord,
+  transposeSong,
 } from './chord';
 
 describe('parseChord', () => {
@@ -309,5 +312,87 @@ describe('chordDegreeRoot', () => {
     // transposed song must read as the same numerals it did before.
     const f7 = parseChord('F7')!;
     expect(chordDegreeRoot(f7, 10, 0)).toBe(chordDegreeRoot(f7, 0, 2));
+  });
+});
+
+describe('firstChordRoot', () => {
+  it('takes the root of the opening chord', () => {
+    expect(firstChordRoot(parseSong('|F13|Bb9|').measures)).toBe(5);
+  });
+
+  it('skips a measure that carries no rooted chord', () => {
+    expect(firstChordRoot(parseSong('|N.C.|Bb9|').measures)).toBe(10);
+  });
+
+  it('falls back on C when nothing has a root', () => {
+    expect(firstChordRoot(parseSong('|N.C.|').measures)).toBe(0);
+  });
+});
+
+describe('resolveKeyRoot', () => {
+  const autumnLeaves = parseSong('|Am7b5|D7|Gm7|Gm7|').measures;
+
+  it('infers the tonic from the first chord when none is pinned', () => {
+    expect(resolveKeyRoot(null, autumnLeaves)).toBe(9);
+    expect(resolveKeyRoot(undefined, autumnLeaves)).toBe(9);
+  });
+
+  it('honours a pinned tonic over the first chord', () => {
+    // The tune is in G minor even though it opens on iim7b5.
+    expect(resolveKeyRoot(7, autumnLeaves)).toBe(7);
+  });
+
+  it('treats a pinned C as a pin, not as absent', () => {
+    expect(resolveKeyRoot(0, autumnLeaves)).toBe(0);
+  });
+
+  it('turns the opening chord into i once the tonic is pinned', () => {
+    const am7b5 = parseChord('Am7b5')!;
+    expect(chordDegreeRoot(am7b5, resolveKeyRoot(null, autumnLeaves), 0)).toBe('i');
+    expect(chordDegreeRoot(am7b5, resolveKeyRoot(7, autumnLeaves), 0)).toBe('ii');
+  });
+});
+
+describe('transposeSong', () => {
+  it('moves every chord and keeps the bar lines', () => {
+    expect(transposeSong('|F13|Bb9|F13|', 3, 'flat')).toBe('|Ab13|Db9|Ab13|');
+  });
+
+  it('leaves repeats and within-bar dots alone', () => {
+    expect(transposeSong('|C|%|%%|Bb13 . . E9|', 2, 'sharp'))
+      .toBe('|D|%|%%|C13 . . F#9|');
+  });
+
+  it('keeps the spacing and line breaks the user typed', () => {
+    const src = '|C   G|\n|Am  F|';
+    expect(transposeSong(src, 1, 'flat')).toBe('|Db   Ab|\n|Bbm  Gb|');
+  });
+
+  it('spells the result for the key it lands in', () => {
+    expect(transposeSong('|C|', 1, 'flat')).toBe('|Db|');
+    expect(transposeSong('|C|', 1, 'sharp')).toBe('|C#|');
+  });
+
+  it('carries a slash bass along', () => {
+    expect(transposeSong('|C/E|', 5, 'flat')).toBe('|F/A|');
+  });
+
+  it('hands back anything it cannot parse', () => {
+    expect(transposeSong('|N.C.|C|', 2, 'sharp')).toBe('|N.C.|D|');
+    expect(transposeSong('|zzz|C|', 2, 'sharp')).toBe('|zzz|D|');
+  });
+
+  it('is a no-op at zero semitones, spelling aside', () => {
+    expect(transposeSong('|F13|Bb9|', 0, 'flat')).toBe('|F13|Bb9|');
+  });
+
+  it('holds the degrees still, which is the point of a hard transpose', () => {
+    // A blues in F rewritten into Ab: the numerals must not budge.
+    const src = '|F13|Bb9|F13|D7#9|';
+    const moved = transposeSong(src, 3, 'flat');
+    const degrees = (text: string, key: number) =>
+      parseSong(text).measures.flatMap(m =>
+        m.kind === 'chords' ? m.chords.map(c => chordDegreeRoot(c, key, 0)) : []);
+    expect(degrees(moved, 8)).toEqual(degrees(src, 5));
   });
 });

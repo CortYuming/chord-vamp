@@ -147,6 +147,37 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-bottom: 8px;
 }
 
+/* A staged key edit: the select carries the accent until one of the two
+   buttons commits it, so the pending state reads as unfinished. */
+.key-section select.key-pending {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.key-commit {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.key-cancel {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.key-cancel:hover:not(:disabled) { background: none; }
+
+.key-undo {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .chord-input {
   width: 100%;
   padding: 8px 10px;
