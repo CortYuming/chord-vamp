@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
 import { noteLabel } from '../chord';
 import { expandSong } from '../player';
@@ -61,6 +61,25 @@ export function NoteGrid({
   );
   const flat = prefer === 'flat';
 
+  // Follow the playhead. The strip is wider than the screen by design, so a
+  // bar past the right edge would otherwise be unreachable while playing.
+  // Centred rather than scrolled-into-view, so the bars either side stay
+  // visible -- what is coming next is half the point of watching.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const barEls = useRef(new Map<number, HTMLDivElement>());
+  useEffect(() => {
+    if (currentMeasure < 0) return;
+    const wrap = wrapRef.current;
+    const el = barEls.current.get(currentMeasure);
+    if (!wrap || !el) return;
+    const target = el.offsetLeft - wrap.clientWidth / 2 + el.offsetWidth / 2;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    wrap.scrollTo({
+      left: Math.max(0, target),
+      behavior: still ? 'auto' : 'smooth',
+    });
+  }, [currentMeasure]);
+
   if (cols.length === 0) return null;
 
   const totalBeats = bars.length * BEATS;
@@ -78,7 +97,7 @@ export function NoteGrid({
   const style = { gridTemplateColumns: `repeat(${totalBeats}, minmax(0, 1fr))` };
 
   return (
-    <div className="note-grid-wrap">
+    <div className="note-grid-wrap" ref={wrapRef}>
       <div
         className="note-grid"
         style={{ ...style, minWidth: `${bars.length * 108}px` }}
@@ -87,6 +106,10 @@ export function NoteGrid({
         {bars.map((b, i) => (
           <div
             key={`n${b}`}
+            ref={(el) => {
+              if (el) barEls.current.set(b, el);
+              else barEls.current.delete(b);
+            }}
             className={'ng-bar-no' + (i % 4 === 0 ? ' ng-rule' : '')
               + (b === currentMeasure ? ' ng-now' : '')}
             style={{ gridColumn: `span ${BEATS}` }}

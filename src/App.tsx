@@ -8,6 +8,12 @@ import { Player } from './player';
 import * as Tone from 'tone';
 import { loadCurrent, loadPrefs, loadSongs, newSong, saveCurrent, savePrefs, type Song } from './storage';
 
+const NOTE_MODES: [NoteLabelMode, string][] = [
+  ['note', 'Notes'],
+  ['interval', 'Intervals'],
+  ['solfa', 'Solfege'],
+];
+
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
 function App() {
@@ -476,14 +482,19 @@ function App() {
         {showNotes && (
           <div className="ctrl">
             <label>Label</label>
-            <select
-              value={noteMode}
-              onChange={(e) => setNoteMode(e.target.value as NoteLabelMode)}
-            >
-              <option value="note">Notes</option>
-              <option value="interval">Intervals</option>
-              <option value="solfa">Solfege</option>
-            </select>
+            <div className="ng-seg" role="group" aria-label="Note labels">
+              {NOTE_MODES.map(([value, text]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={'ng-seg-btn' + (noteMode === value ? ' active' : '')}
+                  aria-pressed={noteMode === value}
+                  onClick={() => setNoteMode(value)}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </section>

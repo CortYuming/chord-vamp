@@ -22,7 +22,7 @@ export interface Prefs {
 const DEFAULT_PREFS: Prefs = {
   volume: 80,
   swing: false,
-  theme: null,
+  theme: 'light',
 };
 
 function genId(): string {

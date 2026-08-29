@@ -466,3 +466,25 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   align-items: center;
   margin: 0.5rem 0;
 }
+
+/* Label switch: three states worth one click each, not a menu to open. */
+.ng-seg {
+  display: inline-flex;
+  border: 1px solid var(--grid-line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ng-seg-btn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+  background: var(--paper);
+  color: var(--muted);
+  border: none;
+  border-right: 1px solid var(--grid-line);
+  cursor: pointer;
+}
+.ng-seg-btn:last-child { border-right: none; }
+.ng-seg-btn:hover { color: var(--fg); }
+.ng-seg-btn.active { background: var(--fg); color: var(--bg); }
