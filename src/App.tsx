@@ -477,7 +477,7 @@ function App() {
 
       <section className="note-grid-controls">
         <button onClick={() => setShowNotes((v) => !v)}>
-          {showNotes ? 'Hide notes' : 'Show notes'}
+          {showNotes ? 'Hide analysis' : 'Show analysis'}
         </button>
         {showNotes && (
           <div className="ctrl">
