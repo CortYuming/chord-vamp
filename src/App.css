@@ -64,6 +64,44 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-bottom: 28px;
 }
 
+/* Where a sheet came from, in the row the song controls stand in for a song of
+   this app's own. It says one thing -- this is yt-loop's transcription, being
+   read -- so it is a line of text rather than a panel: there is nothing here to
+   operate. */
+.yt-source {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: var(--paper);
+}
+
+.yt-source-from {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.yt-source-name {
+  font-size: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.yt-source-ro {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
 .save-btn {
   background: var(--accent);
   color: var(--paper);
@@ -191,6 +229,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: inherit;
   resize: vertical;
   min-height: 60px;
+}
+
+/* A sheet being read rather than written -- yt-loop's. Greyed like any field
+   that is not taking input, and still selectable: copying the chords out is a
+   perfectly ordinary thing to want. */
+.chord-input-ro {
+  color: var(--muted);
+  background: transparent;
+  cursor: default;
 }
 
 .errors {
@@ -356,6 +403,32 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
      music, and should not be mistaken for one at a glance. */
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
   font-variant-numeric: tabular-nums;
+}
+
+/* A number that leads back to the video. Underlined and in the accent from the
+   moment it is drawn: a sheet is read on a phone as often as at a desk, and a
+   mark that only appears under a pointer is a mark half the readers never see.
+
+   The padding is tap target and nothing else -- pulled back out by the offsets
+   above it, so the digits sit exactly where a plain number does and a bar with
+   a link is not a bar drawn differently. */
+.measure-index-link {
+  top: -4px;
+  left: -2px;
+  padding: 8px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.measure-index-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* The playing bar goes yellow under the number, where the accent is too pale to
+   read. */
+.measure-current .measure-index-link {
+  color: #2c4460;
 }
 
 .chord-row {

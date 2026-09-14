@@ -136,3 +136,63 @@ export function savePrefs(prefs: Prefs): void {
     /* ignore */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sheets read from yt-loop
+// ---------------------------------------------------------------------------
+// The sheet itself is never stored here: it belongs to yt-loop, arrives in a
+// link, and is read and not written -- see ytloop.ts. What is stored is this
+// app's own side of it, per video: the tempo the passage is being practised at,
+// how far it has been moved, and which bars are being worked on. A tune picked
+// up next week starts where it was left rather than at the defaults, and the
+// transcription it is read from stays the one copy there is.
+export interface YtPrefs {
+  bpm: number;
+  transpose: number;
+  loopStart: number | null;
+  loopEnd: number | null;
+}
+
+const YT_PREFS_KEY = 'chord-vamp:ytloop:v1';
+
+type YtPrefsStore = Record<string, YtPrefs>;
+
+function loadYtStore(): YtPrefsStore {
+  try {
+    const raw = localStorage.getItem(YT_PREFS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as YtPrefsStore;
+  } catch {
+    return {};
+  }
+}
+
+// Null rather than defaults for a video never opened here: the caller has its
+// own idea of what a fresh sheet starts at, and a stored 0 must not be confused
+// with nothing stored.
+export function loadYtPrefs(videoId: string): YtPrefs | null {
+  if (!videoId) return null;
+  const found = loadYtStore()[videoId];
+  if (!found || typeof found !== 'object') return null;
+  const bpm = Number(found.bpm);
+  const transpose = Number(found.transpose);
+  return {
+    bpm: bpm >= 20 && bpm <= 400 ? Math.round(bpm) : 85,
+    transpose: Number.isInteger(transpose) ? transpose : 0,
+    loopStart: typeof found.loopStart === 'number' ? found.loopStart : null,
+    loopEnd: typeof found.loopEnd === 'number' ? found.loopEnd : null,
+  };
+}
+
+export function saveYtPrefs(videoId: string, prefs: YtPrefs): void {
+  if (!videoId) return;
+  try {
+    const store = loadYtStore();
+    store[videoId] = prefs;
+    localStorage.setItem(YT_PREFS_KEY, JSON.stringify(store));
+  } catch {
+    /* ignore quota */
+  }
+}

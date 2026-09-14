@@ -6,7 +6,11 @@ import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
 import { Player } from './player';
 import * as Tone from 'tone';
-import { loadCurrent, loadPrefs, loadSongs, newSong, saveCurrent, savePrefs, type Song } from './storage';
+import {
+  loadCurrent, loadPrefs, loadSongs, loadYtPrefs, newSong, saveCurrent, savePrefs, saveYtPrefs,
+  type Song,
+} from './storage';
+import { barUrl, jumpToBar, readYtSource } from './ytloop';
 
 const NOTE_MODES: [NoteLabelMode, string][] = [
   ['note', 'Notes'],
@@ -22,6 +26,17 @@ interface KeySnapshot {
 
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
+// A sheet handed over by yt-loop, read from the URL this page was opened with.
+// The link is the whole of the handover, and the page keeps the one it landed
+// on, so this is read once at load rather than watched: read it again on every
+// render and the app would be re-deciding what it is showing four times a bar.
+// Null for an ordinary visit, which is every other line below's "not in that
+// mode".
+const YT_SOURCE = readYtSource(window.location.search);
+// What this app was last set to for that video -- tempo, transposition, the
+// bars being worked on. The sheet is yt-loop's; these are ours.
+const YT_PREFS = YT_SOURCE ? loadYtPrefs(YT_SOURCE.videoId) : null;
+
 function App() {
   const { songs, upsert, remove } = useSongs();
   // The note grid is a second reading of the same sheet, off by default: it is
@@ -30,6 +45,19 @@ function App() {
   const [noteMode, setNoteMode] = useState<NoteLabelMode>(() => loadPrefs().noteMode);
   const [noteSel, setNoteSel] = useState<number | null>(null);
   const [currentSong, setCurrentSong] = useState<Song>(() => {
+    // A sheet from yt-loop is not a song of this app's: it is not in the list,
+    // it is not saved, and it is not what the next ordinary visit opens on. It
+    // wears the Song shape because that is what the player and the grid read.
+    if (YT_SOURCE) {
+      return newSong({
+        name: YT_SOURCE.title,
+        chordsRaw: YT_SOURCE.chords,
+        keyRoot: YT_SOURCE.keyRoot,
+        bpm: YT_PREFS?.bpm ?? 85,
+        transpose: YT_PREFS?.transpose ?? 0,
+        countIn: true,
+      });
+    }
     const songId = new URLSearchParams(window.location.search).get('song');
     if (songId) {
       const found = loadSongs().find(s => s.id === songId);
@@ -45,13 +73,17 @@ function App() {
   });
 
   useEffect(() => {
+    // Not while reading a sheet from yt-loop: whatever song was being worked on
+    // here is still the one to come back to, and a transcription opened for ten
+    // minutes must not take its place.
+    if (YT_SOURCE) return;
     saveCurrent(currentSong);
   }, [currentSong]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMeasure, setCurrentMeasure] = useState(-1);
   const [countingDown, setCountingDown] = useState(0);
-  const [loopStart, setLoopStart] = useState<number | null>(null);
-  const [loopEnd, setLoopEnd] = useState<number | null>(null);
+  const [loopStart, setLoopStart] = useState<number | null>(YT_PREFS?.loopStart ?? null);
+  const [loopEnd, setLoopEnd] = useState<number | null>(YT_PREFS?.loopEnd ?? null);
   const [isDragging, setIsDragging] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
@@ -100,6 +132,19 @@ function App() {
   const update = useCallback((patch: Partial<Song>) => {
     setCurrentSong(prev => ({ ...prev, ...patch }));
   }, []);
+
+  // Our side of a yt-loop sheet, kept per video: the tempo it is being worked
+  // at, how far it has been moved, and the bars being gone over. Next week the
+  // same button opens it where it was left instead of at 85 and no loop.
+  useEffect(() => {
+    if (!YT_SOURCE) return;
+    saveYtPrefs(YT_SOURCE.videoId, {
+      bpm: currentSong.bpm,
+      transpose: currentSong.transpose,
+      loopStart,
+      loopEnd,
+    });
+  }, [currentSong.bpm, currentSong.transpose, loopStart, loopEnd]);
 
   // Written key: what the sheet says, before transposition.
   const tonicRoot = useMemo(
@@ -383,6 +428,12 @@ function App() {
 
   const hasLoop = loopStart !== null && loopEnd !== null;
 
+  // A bar number leads back to the video it was transcribed from. Held in a
+  // local so its type still says "there is a source" inside the two closures.
+  const yt = YT_SOURCE;
+  const barHref = yt ? (i: number) => barUrl(yt, i, window.location.href) : undefined;
+  const handleBarJump = yt ? (i: number) => { jumpToBar(yt, i); } : undefined;
+
   return (
     <div className="app">
       <header className="header">
@@ -404,6 +455,16 @@ function App() {
         </div>
       </header>
 
+      {YT_SOURCE ? (
+        // Where the sheet came from, and that it is not ours to change. The
+        // song controls are gone rather than disabled: none of saving, loading
+        // or renaming means anything for a transcription that lives elsewhere.
+        <section className="yt-source">
+          <span className="yt-source-from">yt-loop</span>
+          <span className="yt-source-name">{YT_SOURCE.title || YT_SOURCE.videoId}</span>
+          <span className="yt-source-ro">read only</span>
+        </section>
+      ) : (
       <section className={`song-meta${nameInvalid ? ' song-meta-with-hint' : ''}`}>
         <div className="song-name-wrap">
           <input
@@ -442,6 +503,7 @@ function App() {
           <button onClick={handleDelete} title="Delete">🗑 Delete</button>
         )}
       </section>
+      )}
 
       <section className="key-section">
         <div className="ctrl">
@@ -463,10 +525,15 @@ function App() {
               onClick={handleSetKey}
               title="Read the chart in this key. The chords stay as they are."
             >Set</button>
-            <button
-              onClick={handleSetAndTranspose}
-              title="Rewrite every chord into this key."
-            >Set and transpose</button>
+            {/* Rewriting the chords is out while the sheet is yt-loop's: the
+                text is not ours to change. ♭/♯ and Set both stand -- neither
+                touches a character of it. */}
+            {!YT_SOURCE && (
+              <button
+                onClick={handleSetAndTranspose}
+                title="Rewrite every chord into this key."
+              >Set and transpose</button>
+            )}
             <button className="key-cancel" onClick={() => setPendingKey(null)}>cancel</button>
           </>
         )}
@@ -477,12 +544,14 @@ function App() {
 
       <section className="chord-input-section">
         <textarea
-          className="chord-input"
+          className={`chord-input${YT_SOURCE ? ' chord-input-ro' : ''}`}
           value={currentSong.chordsRaw}
           onChange={(e) => update({ chordsRaw: e.target.value })}
           placeholder="|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|..."
           spellCheck={false}
           rows={3}
+          readOnly={!!YT_SOURCE}
+          title={YT_SOURCE ? 'This sheet is yt-loop’s — edit it there' : undefined}
         />
         {parsed.errors.length > 0 && (
           <div className="errors">
@@ -594,6 +663,8 @@ function App() {
         onMeasureDown={handleMeasureDown}
         onMeasureEnter={handleMeasureEnter}
         onGridUp={handleGridUp}
+        barHref={barHref}
+        onBarJump={handleBarJump}
       />
 
       <section className="note-grid-controls">

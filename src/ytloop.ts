@@ -1,0 +1,126 @@
+// A sheet arriving from yt-loop.
+//
+// yt-loop transcribes a video bar by bar, in a notation of its own that carries
+// fingerings, single notes, rests and ties. None of that is playable here, so
+// what it sends is the part that is: the bars as chord names, the seconds each
+// bar covers in the video, the key, and what the video is called. It is all in
+// the link, written at the moment its button is pressed -- nothing is stored on
+// either side, which is why there is nothing to keep in step. A sheet edited
+// over there is sent again by pressing the button again.
+//
+// The sheet is read, never written: this app has no way to say anything back
+// about a transcription, and the one copy of it stays where it is being made.
+// See yt-loop's README, "Opening a sheet in chord-vamp", for the link's shape.
+
+/** The seconds one bar covers in the video. */
+export interface YtBar {
+  start: number | null;
+  /** Null for a bar with nothing after it to take an end from -- the last one. */
+  end: number | null;
+}
+
+export interface YtSource {
+  videoId: string;
+  /** The bars as this app writes them: `|F13|Bb9|`. */
+  chords: string;
+  /** One entry per bar of `chords`, in step with it. Empty when none was sent. */
+  bars: YtBar[];
+  /** The written key as a semitone, or null where the sheet named none. */
+  keyRoot: number | null;
+  title: string;
+}
+
+/**
+ * One bar's times, as `43.50-45.90` or `43.50` for a bar with no end. An
+ * untimed bar is written as nothing at all, so the list stays in step with the
+ * bars whatever has been timed so far.
+ */
+function parseBarTimes(field: string): YtBar[] {
+  return field.split(',').map((cell) => {
+    const text = cell.trim();
+    if (!text) return { start: null, end: null };
+    const dash = text.indexOf('-');
+    const start = Number(dash === -1 ? text : text.slice(0, dash));
+    if (!isFinite(start)) return { start: null, end: null };
+    if (dash === -1) return { start, end: null };
+    const end = Number(text.slice(dash + 1));
+    return { start, end: isFinite(end) && end > start ? end : null };
+  });
+}
+
+/**
+ * The sheet in a link, or null when the link carries none. Everything is read
+ * defensively: a link can be edited by hand, bookmarked from an older build, or
+ * simply truncated by whatever it was pasted through.
+ */
+export function readYtSource(search: string): YtSource | null {
+  const params = new URLSearchParams(search);
+  const videoId = (params.get('v') ?? '').trim();
+  const chords = (params.get('k') ?? '').trim();
+  if (!videoId || !chords) return null;
+
+  const keyField = params.get('key');
+  const keyNum = keyField === null ? NaN : Number(keyField);
+  const keyRoot = Number.isInteger(keyNum) && keyNum >= 0 && keyNum <= 11 ? keyNum : null;
+
+  return {
+    videoId,
+    chords,
+    bars: parseBarTimes(params.get('t') ?? ''),
+    keyRoot,
+    title: (params.get('title') ?? '').trim(),
+  };
+}
+
+/**
+ * The link back to yt-loop for one bar: the video, and the seconds that bar
+ * covers. Null where the bar has no time on it -- a sheet being written from
+ * the top has bars nobody has caught yet, and there is nowhere to send anyone.
+ *
+ * Written relative to this page, so the same call is right on GitHub Pages
+ * (`/chord-vamp/` next to `/yt-loop/`) and on a dev server serving both.
+ */
+export function barUrl(src: YtSource, bar: number, here: string): string | null {
+  const span = src.bars[bar];
+  if (!span || span.start === null) return null;
+  const params = new URLSearchParams();
+  params.set('v', src.videoId);
+  params.set('s', span.start.toFixed(2));
+  if (span.end !== null) params.set('e', span.end.toFixed(2));
+  return new URL(`../yt-loop/?${params.toString()}`, here).href;
+}
+
+/**
+ * Send yt-loop to a bar.
+ *
+ * The tab this one was opened from is the tab holding the video, already loaded
+ * and sitting on a frame. A message moves it; a link would reload it, and
+ * waiting through YouTube's load is the whole of what a bar number is meant to
+ * save. Where there is no such tab -- this page opened from a bookmark, or the
+ * other one closed -- the link stands in, in a named tab so a run of bar
+ * numbers lands in one tab rather than a pile of them.
+ */
+export function jumpToBar(src: YtSource, bar: number, win: Window = window): boolean {
+  const span = src.bars[bar];
+  if (!span || span.start === null) return false;
+
+  const opener = win.opener as Window | null;
+  if (opener && !opener.closed) {
+    try {
+      opener.postMessage(
+        { type: 'yt-loop:seek', start: span.start, end: span.end },
+        win.location.origin,
+      );
+      opener.focus();
+      return true;
+    } catch {
+      // An opener from somewhere else entirely, or one that has since navigated
+      // away: the link below is the way through.
+    }
+  }
+
+  const url = barUrl(src, bar, win.location.href);
+  if (!url) return false;
+  win.open(url, 'yt-loop');
+  return true;
+}
