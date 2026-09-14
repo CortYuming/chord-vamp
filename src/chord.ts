@@ -29,6 +29,11 @@ export function keyPreferFor(semi: number): Accidental {
   return KEY_PREFER[i];
 }
 
+// A bar is read in eighth-note slots -- eight of them in 4/4. Four was the
+// old resolution, and it could not hold a chord that lands off the beat: an
+// anticipation had to be dropped from the sheet to keep the bar parseable.
+export const SLOTS_PER_MEASURE = 8;
+
 export interface Chord {
   raw: string;
   root: number | null;
@@ -246,6 +251,12 @@ export function parseSong(text: string): Song {
       } else {
         chords.push(c);
       }
+    }
+    if (chords.length > SLOTS_PER_MEASURE) {
+      errors.push(
+        `measure ${i + 1}: ${chords.length} chords in one bar, only ` +
+        `${SLOTS_PER_MEASURE} fit -- the rest will not sound`,
+      );
     }
     measures.push({ kind: 'chords', chords });
   });

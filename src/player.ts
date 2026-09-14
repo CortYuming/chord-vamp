@@ -1,11 +1,14 @@
 import * as Tone from 'tone';
-import type { Chord, Measure, Song as ParsedSong } from './chord';
-import { NOTES_SHARP } from './chord';
+import type { Chord, Song as ParsedSong } from './chord';
+import { NOTES_SHARP, SLOTS_PER_MEASURE } from './chord';
+import type { ExpandedMeasure } from './slots';
+import { expandSong } from './slots';
 
-export interface ExpandedMeasure {
-  beats: (Chord | null)[];
-  sourceIndex: number;
-}
+const BEATS_PER_MEASURE = 4;
+// The transport already ticks in eighths, so one tick is one slot.
+const SLOTS_PER_BEAT = SLOTS_PER_MEASURE / BEATS_PER_MEASURE;
+const BASS_OCTAVE = 2;
+const SWING_AMOUNT = 0.53;
 
 export interface PlayerConfig {
   song: ParsedSong;
@@ -17,59 +20,6 @@ export interface PlayerConfig {
   swing: boolean;
   onBeat: (measureIdx: number, beatIdx: number, isCountIn: boolean) => void;
   onStop: () => void;
-}
-
-const BEATS_PER_MEASURE = 4;
-const SUBS_PER_BEAT = 2;
-const SUBS_PER_MEASURE = BEATS_PER_MEASURE * SUBS_PER_BEAT;
-const BASS_OCTAVE = 2;
-const SWING_AMOUNT = 0.53;
-
-function resolveMeasureChords(measures: Measure[], idx: number): Chord[] {
-  let cur = idx;
-  const guard = new Set<number>();
-  while (cur >= 0 && !guard.has(cur)) {
-    guard.add(cur);
-    const m = measures[cur];
-    if (!m) return [];
-    if (m.kind === 'chords') return m.chords;
-    if (m.kind === 'repeat1') cur -= 1;
-    else if (m.kind === 'repeat2') cur -= 2;
-    else break;
-  }
-  return [];
-}
-
-function splitToBeats(chords: Chord[], perMeasure: number): (Chord | null)[] {
-  if (chords.length === 0) return Array(perMeasure).fill(null);
-  if (chords.length >= perMeasure) return chords.slice(0, perMeasure);
-  const beatsPerChord = perMeasure / chords.length;
-  const beats: (Chord | null)[] = [];
-  for (let b = 0; b < perMeasure; b++) {
-    const idx = Math.floor(b / beatsPerChord);
-    beats.push(chords[Math.min(idx, chords.length - 1)]);
-  }
-  return beats;
-}
-
-export function expandSong(
-  song: ParsedSong,
-  loopStart: number,
-  loopEnd: number,
-): ExpandedMeasure[] {
-  const n = song.measures.length;
-  if (n === 0) return [];
-  const s = Math.max(0, Math.min(loopStart, n - 1));
-  const e = loopEnd < 0 ? n - 1 : Math.max(s, Math.min(loopEnd, n - 1));
-  const out: ExpandedMeasure[] = [];
-  for (let i = s; i <= e; i++) {
-    const chords = resolveMeasureChords(song.measures, i);
-    out.push({
-      beats: splitToBeats(chords, BEATS_PER_MEASURE),
-      sourceIndex: i,
-    });
-  }
-  return out;
 }
 
 function shiftRoot(root: number, semitones: number): number {
@@ -89,8 +39,8 @@ export class Player {
   private bassSynth: Tone.Synth | null = null;
   private repeatId: number | null = null;
   private expanded: ExpandedMeasure[] = [];
-  private subIndex = 0;
-  private countInSubsLeft = 0;
+  private slotIndex = 0;
+  private countInSlotsLeft = 0;
   private cfg: PlayerConfig | null = null;
 
   get isPlaying(): boolean {
@@ -109,8 +59,8 @@ export class Player {
     Tone.getTransport().swing = cfg.swing ? SWING_AMOUNT : 0;
     Tone.getTransport().swingSubdivision = '8n';
 
-    this.subIndex = 0;
-    this.countInSubsLeft = cfg.countIn ? BEATS_PER_MEASURE * SUBS_PER_BEAT : 0;
+    this.slotIndex = 0;
+    this.countInSlotsLeft = cfg.countIn ? SLOTS_PER_MEASURE : 0;
 
     const clickFilter = new Tone.Filter({ frequency: 4000, type: 'highpass' }).toDestination();
     this.clickSynth = new Tone.NoiseSynth({
@@ -142,30 +92,32 @@ export class Player {
   private tick(time: number) {
     if (!this.cfg) return;
 
-    if (this.countInSubsLeft > 0) {
-      const beatsElapsed = (BEATS_PER_MEASURE * SUBS_PER_BEAT - this.countInSubsLeft);
-      const isDownbeat = beatsElapsed % SUBS_PER_BEAT === 0;
+    if (this.countInSlotsLeft > 0) {
+      const slotsElapsed = (SLOTS_PER_MEASURE - this.countInSlotsLeft);
+      const isDownbeat = slotsElapsed % SLOTS_PER_BEAT === 0;
       if (isDownbeat) {
         this.clickSynth?.triggerAttackRelease('16n', time);
-        const beatIdx = Math.floor(beatsElapsed / SUBS_PER_BEAT);
+        const beatIdx = Math.floor(slotsElapsed / SLOTS_PER_BEAT);
         Tone.getDraw().schedule(() => {
           this.cfg?.onBeat(-1, beatIdx, true);
         }, time);
       }
-      this.countInSubsLeft--;
+      this.countInSlotsLeft--;
       return;
     }
 
     if (this.expanded.length === 0) return;
-    const total = this.expanded.length * SUBS_PER_MEASURE;
-    const idx = this.subIndex % total;
-    const mIdx = Math.floor(idx / SUBS_PER_MEASURE);
-    const subInMeasure = idx % SUBS_PER_MEASURE;
-    const bIdx = Math.floor(subInMeasure / SUBS_PER_BEAT);
-    const isDownbeat = subInMeasure % SUBS_PER_BEAT === 0;
+    const total = this.expanded.length * SLOTS_PER_MEASURE;
+    const idx = this.slotIndex % total;
+    const mIdx = Math.floor(idx / SLOTS_PER_MEASURE);
+    const slotInMeasure = idx % SLOTS_PER_MEASURE;
+    const bIdx = Math.floor(slotInMeasure / SLOTS_PER_BEAT);
+    const isDownbeat = slotInMeasure % SLOTS_PER_BEAT === 0;
 
+    // Only the beat slots sound. An off-beat chord is on the page and under
+    // the player's eye, but the bass walks in quarters underneath it.
     if (isDownbeat) {
-      const chord = this.expanded[mIdx].beats[bIdx];
+      const chord = this.expanded[mIdx].slots[slotInMeasure];
       if (chord) {
         const note = chordToBassNote(chord, this.cfg.transpose);
         if (note) this.bassSynth?.triggerAttackRelease(note, '8n', time);
@@ -178,7 +130,7 @@ export class Player {
       this.hatSynth?.triggerAttackRelease('32n', time);
     }
 
-    this.subIndex++;
+    this.slotIndex++;
   }
 
   stop() {

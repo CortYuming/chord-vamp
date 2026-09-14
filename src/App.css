@@ -1,5 +1,7 @@
+/* The grid is the reason this page is wide: eight slots to a bar need room,
+   and a bar that gets it holds its chord names on one line. Width is the one
+   thing here that may vary -- everything inside a bar is fixed. */
 .app {
-  max-width: 1000px;
   margin: 0 auto;
   padding: 16px;
 }
@@ -302,17 +304,27 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   padding: 24px 0;
 }
 
+/* The column count is set on each row by the script, from the width on hand
+   and how finely that row's bars are written -- see layout.ts. Four is the
+   most; one is what a phone is left with. */
 .chord-row-line {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
 
+/* One bar is one length of time, so every bar is drawn the same size -- a bar
+   that grew to fit a busy set of chords would be saying something about the
+   music that is not true. The height is struck from the worst case the type
+   size allows: a degree line over a chord name wrapped to two lines. */
 .measure {
   position: relative;
   border: 1.5px solid var(--grid-line);
-  min-height: 72px;
-  padding: 6px 8px;
+  height: 96px;
+  /* Even padding, so the chords sit on the bar's middle line rather than
+     below it. The number keeps clear of them by the height of the bar alone:
+     it is out of flow in the top corner, and the chords are centred well
+     under it. The extra height is what buys that gap. */
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -335,11 +347,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .measure-index {
   position: absolute;
-  top: 2px;
-  left: 4px;
-  font-size: 10px;
+  top: 4px;
+  left: 6px;
+  font-size: 14px;
   color: var(--muted);
-  font-family: 'Menlo', monospace;
+  /* Sans, and set apart from the chord names, which are the serif. A number
+     in the corner is a label on the bar rather than anything to be read as
+     music, and should not be mistaken for one at a glance. */
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 .chord-row {
@@ -350,11 +366,39 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   justify-content: center;
 }
 
+/* A bar's chords, each drawn as wide as it is held for. Widths come from the
+   slot count alone (flex-basis 0, grow by span), so two bars holding the same
+   rhythm line up across the row -- content-sized runs would let a long chord
+   name buy itself time it does not have.
+
+   One type size for every bar, busy or not. Sizing type by how much a bar held
+   made the chord names themselves report the density, which is the grid's job
+   and not the lettering's. */
+.chord-line {
+  display: flex;
+  width: 100%;
+  font-size: 17px;
+}
+
+/* A chord is written where it starts sounding, so a run is read from its left
+   edge rather than centred in the time it fills. The padding is for the bar
+   line it would otherwise touch, and is small enough not to disturb the
+   widths it comes out of. */
+.chord-run {
+  flex-basis: 0;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 2px;
+}
+
 .chord {
   display: inline-flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 1px;
+  min-width: 0;
+  text-align: left;
   font-family: 'Georgia', 'Times New Roman', 'YuMincho', serif;
 }
 
@@ -370,6 +414,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 22px;
   font-weight: 500;
   line-height: 1.1;
+}
+
+/* Both lines take the bar's size. A name with no room has nowhere to go but
+   down to a second line -- better a wrap than a name cut off mid-chord, and
+   the bar is built tall enough to hold one. */
+.chord-line .chord-degree {
+  font-size: 1em;
+  min-height: 1.15em;
+}
+
+.chord-line .chord-note {
+  font-size: 1em;
+  overflow-wrap: anywhere;
 }
 
 .measure-current .chord-degree {
@@ -397,6 +454,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .measure-empty {
   font-size: 20px;
   color: var(--muted);
+}
+
+/* A phone gets one bar to the line, and even that bar is narrower than a
+   desktop slot. Smaller type is what makes the names fit; the bar keeps its
+   height, which is what lets a name that still has to wrap do so without the
+   bar changing size or running into its number. */
+@media (max-width: 640px) {
+  .app { padding: 8px; }
+  .chord-grid { padding: 8px; }
+  .chord-line { font-size: 13px; }
+  .measure-index { font-size: 12px; }
 }
 
 .footer {
