@@ -92,6 +92,21 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   overflow-wrap: anywhere;
 }
 
+/* What was just sent next door. Reads as a receipt, not as a warning: nothing
+   has gone wrong, the player is simply in another tab. */
+.yt-source-sent {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.yt-source-note {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .yt-source-ro {
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
   font-size: 11px;
