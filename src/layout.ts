@@ -74,3 +74,21 @@ export function packRows(spans: number[], width: number): Row[] {
   }
   return rows;
 }
+
+/**
+ * Which line a bar was packed onto, or -1 when it was packed onto none --
+ * nothing is playing, or the sheet changed under a playhead that had already
+ * moved past its end.
+ *
+ * Lines take as many bars as they can hold rather than a fixed number, so a
+ * bar's line cannot be worked out by dividing: it has to be looked up in the
+ * rows the layout actually produced.
+ */
+export function rowIndexOf(rows: Row[], measure: number): number {
+  if (measure < 0) return -1;
+  for (let i = 0; i < rows.length; i++) {
+    const { start, perRow } = rows[i];
+    if (measure >= start && measure < start + perRow) return i;
+  }
+  return -1;
+}

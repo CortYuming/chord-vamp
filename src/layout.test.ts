@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseSong, SLOTS_PER_MEASURE } from './chord';
 import { measureRuns } from './slots';
 import {
-  spansOf, fitsPerRow, packRows,
+  spansOf, fitsPerRow, packRows, rowIndexOf,
   ROW_WIDTHS, GRID_GAP_PX, MIN_RUN_PX,
 } from './layout';
 
@@ -124,5 +124,31 @@ describe('packRows', () => {
 
   it('has nothing to lay out for an empty sheet', () => {
     expect(packRows([], 1000)).toEqual([]);
+  });
+});
+
+describe('rowIndexOf', () => {
+  const rows = [
+    { start: 0, perRow: 4 },
+    { start: 4, perRow: 2 },
+    { start: 6, perRow: 3 },
+  ];
+
+  it('finds the line a bar was packed onto', () => {
+    expect(rowIndexOf(rows, 0)).toBe(0);
+    expect(rowIndexOf(rows, 3)).toBe(0);
+    expect(rowIndexOf(rows, 4)).toBe(1);
+    expect(rowIndexOf(rows, 5)).toBe(1);
+    expect(rowIndexOf(rows, 6)).toBe(2);
+    expect(rowIndexOf(rows, 8)).toBe(2);
+  });
+
+  it('has no line for a bar off either end', () => {
+    expect(rowIndexOf(rows, -1)).toBe(-1);
+    expect(rowIndexOf(rows, 9)).toBe(-1);
+  });
+
+  it('has no line at all when nothing is laid out', () => {
+    expect(rowIndexOf([], 0)).toBe(-1);
   });
 });

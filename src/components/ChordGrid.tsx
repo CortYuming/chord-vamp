@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
 import { chordToString, chordToDegree } from '../chord';
 import { measureRuns } from '../slots';
-import { spansOf, packRows } from '../layout';
+import { spansOf, packRows, rowIndexOf } from '../layout';
 
 interface Props {
   measures: Measure[];
@@ -16,6 +16,11 @@ interface Props {
   onMeasureEnter: (i: number) => void;
   onGridUp: () => void;
 }
+
+// Where the line being played is held on screen: a third of the way down.
+// Above it sits the line just finished, and the rest of the window is what
+// comes next -- a reader is looking ahead, so most of the glass goes there.
+const PLAYHEAD_ANCHOR = 1 / 3;
 
 function SimileMark({ variant }: { variant: 'single' | 'double' }) {
   return (
@@ -99,6 +104,36 @@ export function ChordGrid({
   const spans = useMemo(() => spansOf(barRuns), [barRuns]);
   const rows = useMemo(() => packRows(spans, width), [spans, width]);
 
+  // Follow the playhead down the page. The line is what moves, not the bar:
+  // scrolling on every eighth would shuffle the page under a reader four
+  // times a bar to no purpose, and the bars of a line are all read from the
+  // same place anyway.
+  const rowEls = useRef(new Map<number, HTMLDivElement | null>());
+  const lastRow = useRef(-1);
+  useEffect(() => {
+    const row = rowIndexOf(rows, currentMeasure);
+    if (row < 0) {
+      lastRow.current = -1;
+      return;
+    }
+    if (row === lastRow.current) return;
+    // A row before the one just played means the loop has come round. That is
+    // a jump rather than a journey: sliding the whole chart back past the
+    // reader's eye is a worse interruption than simply being there.
+    const wrapped = row < lastRow.current;
+    lastRow.current = row;
+
+    const el = rowEls.current.get(row);
+    if (!el) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const top = el.getBoundingClientRect().top + window.scrollY
+      - window.innerHeight * PLAYHEAD_ANCHOR;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: wrapped || reduce ? 'auto' : 'smooth',
+    });
+  }, [currentMeasure, rows]);
+
   const loopLo = loopStart !== null && loopEnd !== null ? Math.min(loopStart, loopEnd) : null;
   const loopHi = loopStart !== null && loopEnd !== null ? Math.max(loopStart, loopEnd) : null;
 
@@ -112,10 +147,11 @@ export function ChordGrid({
       {rows.length === 0 && (
         <div className="grid-empty">Enter chord progression above</div>
       )}
-      {rows.map((row) => (
+      {rows.map((row, rowIdx) => (
         <div
           key={row.start}
           className="chord-row-line"
+          ref={(el) => { rowEls.current.set(rowIdx, el); }}
           style={{ gridTemplateColumns: `repeat(${row.perRow}, 1fr)` }}
         >
           {measures.slice(row.start, row.start + row.perRow).map((m, i) => {
