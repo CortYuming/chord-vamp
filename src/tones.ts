@@ -94,7 +94,16 @@ export type ScaleName = keyof typeof SCALES;
  * reads '#9' as a tension.
  */
 export function chordTones(quality: string): ChordTones {
-  const q = (quality ?? '').replace(/♯/g, '#').replace(/♭/g, 'b').trim();
+  // `∆` (U+2206 INCREMENT) is what a keyboard and most notes files give for the
+  // major-seventh triangle; the table below is written with `Δ` (U+0394), the
+  // Greek letter. They look the same on screen and are not the same character,
+  // so without this a `C∆` off a lead sheet read as a plain triad -- the right
+  // root, the wrong chord.
+  const q = (quality ?? '')
+    .replace(/♯/g, '#')
+    .replace(/♭/g, 'b')
+    .replace(/∆/g, 'Δ')
+    .trim();
 
   let key = '';
   let rest = q;
