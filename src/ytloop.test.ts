@@ -110,28 +110,15 @@ describe('barUrl', () => {
 });
 
 describe('jumpToBar', () => {
-  const fakeWindow = (opener: unknown) => ({
-    opener,
+  const fakeWindow = () => ({
     open: vi.fn(),
     location: { href: HERE, origin: 'https://cortyuming.github.io' },
   });
 
-  it('moves the tab it was opened from, rather than loading the video again', () => {
-    const opener = { closed: false, postMessage: vi.fn(), focus: vi.fn() };
-    const win = fakeWindow(opener);
-    expect(jumpToBar(SOURCE, 0, win as unknown as Window)).toBe(true);
-    expect(opener.postMessage).toHaveBeenCalledWith(
-      { type: 'yt-loop:seek', start: 43.5, end: 45.9 },
-      'https://cortyuming.github.io',
-    );
-    expect(win.open).not.toHaveBeenCalled();
-  });
-
-  // Opened from a bookmark, so there is no player waiting anywhere. The link
-  // stands in, in a named tab: a run of bar numbers lands in one tab and not a
-  // pile of them.
-  it('opens yt-loop itself when there is no tab to move', () => {
-    const win = fakeWindow(null);
+  // The named tab is the one already showing the video: the link lands there
+  // rather than in a new window each time, and the browser brings it forward.
+  it('sends the video tab to the bar', () => {
+    const win = fakeWindow();
     expect(jumpToBar(SOURCE, 0, win as unknown as Window)).toBe(true);
     expect(win.open).toHaveBeenCalledWith(
       'https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90',
@@ -139,26 +126,17 @@ describe('jumpToBar', () => {
     );
   });
 
-  it('opens yt-loop itself when that tab has been closed', () => {
-    const win = fakeWindow({ closed: true, postMessage: vi.fn(), focus: vi.fn() });
-    jumpToBar(SOURCE, 0, win as unknown as Window);
-    expect(win.open).toHaveBeenCalled();
-  });
-
-  // Reading `opener` at all throws when it belongs to another origin.
-  it('falls back to the link when the opener cannot be spoken to', () => {
-    const opener = {
-      closed: false,
-      postMessage: () => { throw new Error('cross-origin'); },
-      focus: vi.fn(),
-    };
-    const win = fakeWindow(opener);
-    expect(jumpToBar(SOURCE, 0, win as unknown as Window)).toBe(true);
-    expect(win.open).toHaveBeenCalled();
+  it('sends a start alone where the bar has no end', () => {
+    const win = fakeWindow();
+    jumpToBar(SOURCE, 1, win as unknown as Window);
+    expect(win.open).toHaveBeenCalledWith(
+      'https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90',
+      'yt-loop',
+    );
   });
 
   it('does nothing for a bar with no time on it', () => {
-    const win = fakeWindow(null);
+    const win = fakeWindow();
     expect(jumpToBar(SOURCE, 9, win as unknown as Window)).toBe(false);
     expect(win.open).not.toHaveBeenCalled();
   });

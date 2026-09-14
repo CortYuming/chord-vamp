@@ -14,6 +14,13 @@
 
 import { keyChoiceByLabel } from './chord';
 
+/**
+ * What yt-loop calls its own window. Opening a link with this as the target
+ * lands in the tab already showing the video instead of opening another one.
+ * yt-loop sets `window.name` to the same string; the two have to agree.
+ */
+const YT_LOOP_WINDOW = 'yt-loop';
+
 /** The seconds one bar covers in the video. */
 export interface YtBar {
   start: number | null;
@@ -103,34 +110,19 @@ export function barUrl(src: YtSource, bar: number, here: string): string | null 
 /**
  * Send yt-loop to a bar.
  *
- * The tab this one was opened from is the tab holding the video, already loaded
- * and sitting on a frame. A message moves it; a link would reload it, and
- * waiting through YouTube's load is the whole of what a bar number is meant to
- * save. Where there is no such tab -- this page opened from a bookmark, or the
- * other one closed -- the link stands in, in a named tab so a run of bar
- * numbers lands in one tab rather than a pile of them.
+ * Opens the link in the tab named `yt-loop` -- the tab this page was opened
+ * from names itself that, so the video comes back in the window it is already
+ * in rather than in a pile of new ones, and the browser brings it to the front.
+ *
+ * Moving that player from here without navigating was tried first, and it did
+ * work: the video went to the bar with nothing to reload. But a browser will
+ * not bring another tab forward on a page's say-so, so the jump happened out of
+ * sight, in a tab still behind this one — a bar number that looks like a button
+ * doing nothing. A jump you cannot see is not a jump.
  */
 export function jumpToBar(src: YtSource, bar: number, win: Window = window): boolean {
-  const span = src.bars[bar];
-  if (!span || span.start === null) return false;
-
-  const opener = win.opener as Window | null;
-  if (opener && !opener.closed) {
-    try {
-      opener.postMessage(
-        { type: 'yt-loop:seek', start: span.start, end: span.end },
-        win.location.origin,
-      );
-      opener.focus();
-      return true;
-    } catch {
-      // An opener from somewhere else entirely, or one that has since navigated
-      // away: the link below is the way through.
-    }
-  }
-
   const url = barUrl(src, bar, win.location.href);
   if (!url) return false;
-  win.open(url, 'yt-loop');
+  win.open(url, YT_LOOP_WINDOW);
   return true;
 }

@@ -29,11 +29,6 @@ interface KeySnapshot {
 
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
-// A second of video, written the way yt-loop writes one.
-function clockTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  return `${m}:${(sec - m * 60).toFixed(2).padStart(5, '0')}`;
-}
 
 // A sheet handed over by yt-loop, read from the URL this page was opened with.
 // The link is the whole of the handover, and the page keeps the one it landed
@@ -106,8 +101,6 @@ function App() {
   // the dropdown cannot transpose the song. Every commit pushes the key state
   // it replaced, which is what Undo walks back.
   const [pendingSel, setPendingSel] = useState<number | null>(null);
-  // The bar last sent to yt-loop, for the line that says so.
-  const [sentBar, setSentBar] = useState<number | null>(null);
   const [keyHistory, setKeyHistory] = useState<KeySnapshot[]>([]);
 
   useEffect(() => {
@@ -460,14 +453,7 @@ function App() {
   // local so its type still says "there is a source" inside the two closures.
   const yt = YT_SOURCE;
   const barHref = yt ? (i: number) => barUrl(yt, i, window.location.href) : undefined;
-  const handleBarJump = yt ? (i: number) => {
-    if (!jumpToBar(yt, i)) return;
-    // Say what just happened. The player is in the other tab, and a browser
-    // will not always bring that tab forward on our say-so -- so from here a
-    // bar number could look like a button that does nothing, while yt-loop had
-    // in fact moved. The seconds are there to be checked against it.
-    setSentBar(i);
-  } : undefined;
+  const handleBarJump = yt ? (i: number) => { jumpToBar(yt, i); } : undefined;
 
   return (
     <div className="app">
@@ -503,11 +489,6 @@ function App() {
               written down away from the video -- and then there is nowhere for a
               number to lead. Said out loud rather than left as an absence: a
               link that is simply missing reads as a broken one. */}
-          {sentBar !== null && (
-            <span className="yt-source-sent" role="status">
-              → yt-loop: bar {sentBar + 1} ({clockTime(YT_SOURCE.bars[sentBar]?.start ?? 0)})
-            </span>
-          )}
           {!YT_SOURCE.bars.some(b => b.start !== null) && (
             <span className="yt-source-note">
               no bar times in this sheet — mark them in yt-loop to jump from a bar number

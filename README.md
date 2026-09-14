@@ -65,10 +65,14 @@ button again; nothing is stored on either side to be kept in step.
 
 Each bar number is a link back to the video at the second that bar starts. It is
 drawn as a link from the start rather than appearing under a pointer, since a
-chart is read on a phone as often as at a desk. Clicking one moves the yt-loop
-tab this page was opened from — the video is already loaded there, so there is
-nothing to wait for; opened from a bookmark instead, the link opens yt-loop in a
-tab of its own.
+chart is read on a phone as often as at a desk. It opens in the tab named
+`yt-loop`, which is the tab already showing the video — so the jump is seen, and
+no pile of tabs grows behind it.
+
+Moving that player without navigating was tried first, and it worked: the video
+went to the bar with nothing to reload. But a browser will not bring another tab
+forward because a page asked it to, so the jump happened out of sight and the
+bar number read as a button doing nothing. A jump you cannot see is not a jump.
 
 BPM, transposition and the loop range are remembered per video under
 `chord-vamp:ytloop:v1`, so the same button next week opens the tune where it was
