@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  KEY_CHOICES,
+  keyChoiceByLabel,
+  keyChoiceFor,
   NOTES_FLAT,
   NOTES_SHARP,
   chordDegreeRoot,
@@ -394,5 +397,49 @@ describe('transposeSong', () => {
       parseSong(text).measures.flatMap(m =>
         m.kind === 'chords' ? m.chords.map(c => chordDegreeRoot(c, key, 0)) : []);
     expect(degrees(moved, 8)).toEqual(degrees(src, 5));
+  });
+});
+
+// The key list is yt-loop's, entry for entry: a sheet transcribed there and
+// played here has to be named the same in both, and a key missing from one of
+// the two lists is a sheet that cannot say what it is in.
+describe('KEY_CHOICES', () => {
+  const spellings = (minor: boolean) =>
+    KEY_CHOICES.filter(k => k.minor === minor).map(k => k.label);
+
+  it('holds the twelve majors yt-loop offers, in its order', () => {
+    expect(spellings(false)).toEqual(
+      ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
+    );
+  });
+
+  it('holds the twelve minors yt-loop offers, in its order', () => {
+    expect(spellings(true)).toEqual(
+      ['Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'Ebm', 'Bbm', 'Fm', 'Cm', 'Gm', 'Dm'],
+    );
+  });
+
+  // Where do sits. yt-loop counts a minor key from its relative major, and the
+  // degrees under a chord have to come out the same in both apps.
+  it('counts a minor key from its relative major', () => {
+    expect(keyChoiceByLabel('Am')?.tonic).toBe(0);
+    expect(keyChoiceByLabel('F#m')?.tonic).toBe(9);
+    expect(keyChoiceByLabel('Ebm')?.tonic).toBe(6);
+    expect(keyChoiceByLabel('Bb')?.tonic).toBe(10);
+  });
+
+  it('reads the spellings a link can carry', () => {
+    expect(keyChoiceByLabel('F♯m')?.label).toBe('F#m');
+    expect(keyChoiceByLabel(' bb ')?.label).toBe('Bb');
+    expect(keyChoiceByLabel('H')).toBeNull();
+    expect(keyChoiceByLabel('')).toBeNull();
+  });
+
+  // A tonic belongs to two entries -- a major and its relative minor -- so which
+  // one a sheet is on is carried, not guessed.
+  it('picks the entry a sheet is being read as', () => {
+    expect(keyChoiceFor(0, false).label).toBe('C');
+    expect(keyChoiceFor(0, true).label).toBe('Am');
+    expect(keyChoiceFor(9, true).label).toBe('F#m');
   });
 });

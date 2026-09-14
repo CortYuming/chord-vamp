@@ -4,13 +4,14 @@ import { readYtSource, barUrl, jumpToBar, type YtSource } from './ytloop';
 const HERE = 'https://cortyuming.github.io/chord-vamp/';
 
 // The link yt-loop writes, in the shape its README documents.
-const LINK = '?v=abc123&k=%7CBb7+Eb9%7CD7%2B9%7C&t=0.00-2.10%2C2.10-4.20&key=10&title=Four+on+Six';
+const LINK = '?v=abc123&k=%7CBb7+Eb9%7CD7%2B9%7C&t=0.00-2.10%2C2.10-4.20&key=Bb&title=Four+on+Six';
 
 const SOURCE: YtSource = {
   videoId: 'abc123',
   chords: '|Bb7|D7#9|',
   bars: [{ start: 43.5, end: 45.9 }, { start: 45.9, end: null }],
   keyRoot: 10,
+  keyMinor: false,
   title: 'Four on Six',
 };
 
@@ -21,6 +22,7 @@ describe('readYtSource', () => {
       chords: '|Bb7 Eb9|D7+9|',
       bars: [{ start: 0, end: 2.1 }, { start: 2.1, end: 4.2 }],
       keyRoot: 10,
+      keyMinor: false,
       title: 'Four on Six',
     });
   });
@@ -57,12 +59,27 @@ describe('readYtSource', () => {
     expect(readYtSource('?v=a&k=%7CC%7CF%7C')?.bars).toEqual([{ start: null, end: null }]);
   });
 
+  // The key arrives spelled, not numbered: a tonic alone cannot say whether a
+  // sheet is in C or in Am, which are one set of notes.
+  it('reads the key by its name', () => {
+    expect(readYtSource('?v=a&k=%7CC%7C&key=Bb')?.keyRoot).toBe(10);
+    expect(readYtSource('?v=a&k=%7CC%7C&key=Bb')?.keyMinor).toBe(false);
+  });
+
+  // Am counts from C, the way yt-loop counts it, so the degrees under a chord
+  // read the same in both apps.
+  it('counts a minor key from its relative major', () => {
+    const src = readYtSource('?v=a&k=%7CAm7%7C&key=Am');
+    expect(src?.keyRoot).toBe(0);
+    expect(src?.keyMinor).toBe(true);
+    expect(readYtSource('?v=a&k=%7CC%7C&key=F%23m')?.keyRoot).toBe(9);
+  });
+
   // Hand-edited, or written by a build that spelled the key some other way.
-  it('ignores a key outside the twelve', () => {
+  it('is left with no key by a spelling it does not hold', () => {
     expect(readYtSource('?v=a&k=%7CC%7C&key=12')?.keyRoot).toBeNull();
-    expect(readYtSource('?v=a&k=%7CC%7C&key=Bb')?.keyRoot).toBeNull();
+    expect(readYtSource('?v=a&k=%7CC%7C&key=H')?.keyRoot).toBeNull();
     expect(readYtSource('?v=a&k=%7CC%7C')?.keyRoot).toBeNull();
-    expect(readYtSource('?v=a&k=%7CC%7C&key=0')?.keyRoot).toBe(0);
   });
 });
 

@@ -8,6 +8,12 @@ export interface Song {
   // null = infer it from the first chord. Older saved songs lack the
   // field entirely, which reads as null.
   keyRoot: number | null;
+  // Whether that tonic is being read as a minor key. A major key and its
+  // relative minor are one set of notes and one tonic -- C and Am both count
+  // from C -- so which of the two a sheet is written in cannot be worked out
+  // from keyRoot, and is kept beside it. Older saved songs lack the field,
+  // which reads as major.
+  keyMinor: boolean;
   countIn: boolean;
   createdAt: number;
   updatedAt: number;
@@ -80,6 +86,7 @@ export function newSong(partial: Partial<Song> = {}): Song {
     bpm: partial.bpm ?? 85,
     transpose: partial.transpose ?? 0,
     keyRoot: partial.keyRoot ?? null,
+    keyMinor: partial.keyMinor ?? false,
     countIn: partial.countIn ?? true,
     createdAt: partial.createdAt ?? now,
     updatedAt: partial.updatedAt ?? now,

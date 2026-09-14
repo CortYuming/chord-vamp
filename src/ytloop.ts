@@ -12,6 +12,8 @@
 // about a transcription, and the one copy of it stays where it is being made.
 // See yt-loop's README, "Opening a sheet in chord-vamp", for the link's shape.
 
+import { keyChoiceByLabel } from './chord';
+
 /** The seconds one bar covers in the video. */
 export interface YtBar {
   start: number | null;
@@ -25,8 +27,14 @@ export interface YtSource {
   chords: string;
   /** One entry per bar of `chords`, in step with it. Empty when none was sent. */
   bars: YtBar[];
-  /** The written key as a semitone, or null where the sheet named none. */
+  /**
+   * Where do sits for the written key, or null where the sheet named none. A
+   * minor key counts from its relative major, the way yt-loop counts it, so one
+   * sheet reads the same in both apps.
+   */
   keyRoot: number | null;
+  /** Whether that tonic is being read as a minor key. */
+  keyMinor: boolean;
   title: string;
 }
 
@@ -59,15 +67,17 @@ export function readYtSource(search: string): YtSource | null {
   const chords = (params.get('k') ?? '').trim();
   if (!videoId || !chords) return null;
 
-  const keyField = params.get('key');
-  const keyNum = keyField === null ? NaN : Number(keyField);
-  const keyRoot = Number.isInteger(keyNum) && keyNum >= 0 && keyNum <= 11 ? keyNum : null;
+  // The key travels as yt-loop spells it -- `Bb`, `F#m` -- which is what its own
+  // `key:` line says and what this app's Key list is written in. A spelling
+  // neither app holds is no key rather than a guess at one.
+  const key = keyChoiceByLabel(params.get('key') ?? '');
 
   return {
     videoId,
     chords,
     bars: parseBarTimes(params.get('t') ?? ''),
-    keyRoot,
+    keyRoot: key ? key.tonic : null,
+    keyMinor: key ? key.minor : false,
     title: (params.get('title') ?? '').trim(),
   };
 }

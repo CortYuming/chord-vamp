@@ -48,8 +48,13 @@ covers, the key and the video's title all travel in the link, written at the
 moment the button is pressed.
 
 ```
-?v=<videoId>&k=<bars>&t=<times>&key=<0-11>&title=<video title>
+?v=<videoId>&k=<bars>&t=<times>&key=<key>&title=<video title>
 ```
+
+The key arrives spelled as the sheet spells it — `Bb`, `F#m`. The Key list here
+holds the same twenty-four keys yt-loop offers, in its order and its spellings,
+and a minor key counts from its relative major the way yt-loop counts it, so the
+degrees under a chord read the same in both apps.
 
 The sheet is **read, not written**. It belongs to yt-loop, where it is being
 made, and this app has nothing to say back about a transcription: the chord box

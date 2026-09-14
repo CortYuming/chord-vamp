@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
-import { KEY_NAMES, keyPreferFor, noteLabel, parseSong, resolveKeyRoot, transposeSong } from './chord';
+import {
+  KEY_CHOICES, keyChoiceFor, keyPreferFor, noteLabel, parseSong, resolveKeyRoot, transposeSong,
+} from './chord';
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
@@ -21,6 +23,7 @@ const NOTE_MODES: [NoteLabelMode, string][] = [
 interface KeySnapshot {
   chordsRaw: string;
   keyRoot: number | null;
+  keyMinor: boolean;
   transpose: number;
 }
 
@@ -53,6 +56,7 @@ function App() {
         name: YT_SOURCE.title,
         chordsRaw: YT_SOURCE.chords,
         keyRoot: YT_SOURCE.keyRoot,
+        keyMinor: YT_SOURCE.keyMinor,
         bpm: YT_PREFS?.bpm ?? 85,
         transpose: YT_PREFS?.transpose ?? 0,
         countIn: true,
@@ -95,7 +99,7 @@ function App() {
   // choice until Set or Set and transpose commits it, so a stray scroll over
   // the dropdown cannot transpose the song. Every commit pushes the key state
   // it replaced, which is what Undo walks back.
-  const [pendingKey, setPendingKey] = useState<number | null>(null);
+  const [pendingSel, setPendingSel] = useState<number | null>(null);
   const [keyHistory, setKeyHistory] = useState<KeySnapshot[]>([]);
 
   useEffect(() => {
@@ -155,7 +159,13 @@ function App() {
   const displayedKey = (((tonicRoot + currentSong.transpose) % 12) + 12) % 12;
   const prefer = keyPreferFor(displayedKey);
 
-  const pendingActive = pendingKey !== null && pendingKey !== displayedKey;
+  // Where the select is sitting: the sounding key, read as major or minor
+  // according to what the sheet was said to be in.
+  const currentChoice = keyChoiceFor(displayedKey, currentSong.keyMinor);
+  const currentSel = KEY_CHOICES.indexOf(currentChoice);
+  const pending = pendingSel === null ? null : KEY_CHOICES[pendingSel];
+  const pendingKey = pending ? pending.tonic : null;
+  const pendingActive = pending !== null && pendingSel !== currentSel;
 
   const pushKeyHistory = () => {
     setKeyHistory(prev => [
@@ -163,6 +173,7 @@ function App() {
       {
         chordsRaw: currentSong.chordsRaw,
         keyRoot: currentSong.keyRoot ?? null,
+        keyMinor: currentSong.keyMinor,
         transpose: currentSong.transpose,
       },
     ]);
@@ -178,33 +189,42 @@ function App() {
   // chosen key. iReal Pro's Set, and the fix for a tune that opens off the
   // tonic.
   const handleSetKey = () => {
-    if (pendingKey === null) return;
+    if (pending === null || pendingKey === null) return;
     pushKeyHistory();
-    update({ keyRoot: (((pendingKey - currentSong.transpose) % 12) + 12) % 12 });
-    setPendingKey(null);
+    update({
+      keyRoot: (((pendingKey - currentSong.transpose) % 12) + 12) % 12,
+      keyMinor: pending.minor,
+    });
+    setPendingSel(null);
   };
 
   // Set and transpose: a hard transposition, as in iReal Pro's editor. The
   // sheet text is rewritten into the chosen key and the soft transpose is
   // cleared, so the input box and the grid agree again. The degrees hold still.
   const handleSetAndTranspose = () => {
-    if (pendingKey === null) return;
+    if (pending === null || pendingKey === null) return;
     pushKeyHistory();
     const semitones = (((pendingKey - tonicRoot) % 12) + 12) % 12;
     update({
       chordsRaw: transposeSong(currentSong.chordsRaw, semitones, keyPreferFor(pendingKey)),
       keyRoot: pendingKey,
+      keyMinor: pending.minor,
       transpose: 0,
     });
-    setPendingKey(null);
+    setPendingSel(null);
   };
 
   const handleUndoKey = () => {
     const prev = keyHistory[keyHistory.length - 1];
     if (!prev) return;
     setKeyHistory(h => h.slice(0, -1));
-    update({ chordsRaw: prev.chordsRaw, keyRoot: prev.keyRoot, transpose: prev.transpose });
-    setPendingKey(null);
+    update({
+      chordsRaw: prev.chordsRaw,
+      keyRoot: prev.keyRoot,
+      keyMinor: prev.keyMinor,
+      transpose: prev.transpose,
+    });
+    setPendingSel(null);
   };
 
   const undoTitle = (() => {
@@ -317,7 +337,7 @@ function App() {
     }));
     setLoopStart(null);
     setLoopEnd(null);
-    setPendingKey(null);
+    setPendingSel(null);
     setKeyHistory([]);
   };
 
@@ -328,7 +348,7 @@ function App() {
     setCurrentSong(s);
     setLoopStart(null);
     setLoopEnd(null);
-    setPendingKey(null);
+    setPendingSel(null);
     setKeyHistory([]);
   };
 
@@ -510,12 +530,19 @@ function App() {
           <label>Key</label>
           <select
             className={pendingActive ? 'key-pending' : undefined}
-            value={pendingKey ?? displayedKey}
-            onChange={(e) => setPendingKey(parseInt(e.target.value, 10))}
+            value={pendingSel ?? currentSel}
+            onChange={(e) => setPendingSel(parseInt(e.target.value, 10))}
           >
-            {KEY_NAMES.map((n, i) => (
-              <option key={i} value={i}>{n}</option>
-            ))}
+            <optgroup label="Major">
+              {KEY_CHOICES.map((k, i) => !k.minor && (
+                <option key={k.label} value={i}>{k.text}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Minor">
+              {KEY_CHOICES.map((k, i) => k.minor && (
+                <option key={k.label} value={i}>{k.text}</option>
+              ))}
+            </optgroup>
           </select>
         </div>
         {pendingActive && (
@@ -534,7 +561,7 @@ function App() {
                 title="Rewrite every chord into this key."
               >Set and transpose</button>
             )}
-            <button className="key-cancel" onClick={() => setPendingKey(null)}>cancel</button>
+            <button className="key-cancel" onClick={() => setPendingSel(null)}>cancel</button>
           </>
         )}
         {keyHistory.length > 0 && (
