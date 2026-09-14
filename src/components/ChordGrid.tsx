@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
 import { chordToString, chordToDegree } from '../chord';
+import { measureRuns } from '../slots';
+import { spansOf, packRows, rowIndexOf } from '../layout';
 
 interface Props {
   measures: Measure[];
@@ -14,7 +17,10 @@ interface Props {
   onGridUp: () => void;
 }
 
-const MEASURES_PER_ROW = 4;
+// Where the line being played is held on screen: a third of the way down.
+// Above it sits the line just finished, and the rest of the window is what
+// comes next -- a reader is looking ahead, so most of the glass goes there.
+const PLAYHEAD_ANCHOR = 1 / 3;
 
 function SimileMark({ variant }: { variant: 'single' | 'double' }) {
   return (
@@ -77,10 +83,56 @@ export function ChordGrid({
   onMeasureEnter,
   onGridUp,
 }: Props) {
-  const rows: Measure[][] = [];
-  for (let i = 0; i < measures.length; i += MEASURES_PER_ROW) {
-    rows.push(measures.slice(i, i + MEASURES_PER_ROW));
-  }
+  // The grid's own width, watched rather than read once: the page is as wide
+  // as the window now, so this changes without the sheet changing.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      setWidth(entries[0].contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Read the sheet once. The playhead re-renders this component on every
+  // eighth note, and working the runs out in the body of the render would
+  // redo every bar of the sheet each time.
+  const barRuns = useMemo(() => measureRuns(measures), [measures]);
+  const spans = useMemo(() => spansOf(barRuns), [barRuns]);
+  const rows = useMemo(() => packRows(spans, width), [spans, width]);
+
+  // Follow the playhead down the page. The line is what moves, not the bar:
+  // scrolling on every eighth would shuffle the page under a reader four
+  // times a bar to no purpose, and the bars of a line are all read from the
+  // same place anyway.
+  const rowEls = useRef(new Map<number, HTMLDivElement | null>());
+  const lastRow = useRef(-1);
+  useEffect(() => {
+    const row = rowIndexOf(rows, currentMeasure);
+    if (row < 0) {
+      lastRow.current = -1;
+      return;
+    }
+    if (row === lastRow.current) return;
+    // A row before the one just played means the loop has come round. That is
+    // a jump rather than a journey: sliding the whole chart back past the
+    // reader's eye is a worse interruption than simply being there.
+    const wrapped = row < lastRow.current;
+    lastRow.current = row;
+
+    const el = rowEls.current.get(row);
+    if (!el) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const top = el.getBoundingClientRect().top + window.scrollY
+      - window.innerHeight * PLAYHEAD_ANCHOR;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: wrapped || reduce ? 'auto' : 'smooth',
+    });
+  }, [currentMeasure, rows]);
 
   const loopLo = loopStart !== null && loopEnd !== null ? Math.min(loopStart, loopEnd) : null;
   const loopHi = loopStart !== null && loopEnd !== null ? Math.max(loopStart, loopEnd) : null;
@@ -88,6 +140,7 @@ export function ChordGrid({
   return (
     <div
       className="chord-grid"
+      ref={gridRef}
       onMouseUp={onGridUp}
       onMouseLeave={onGridUp}
     >
@@ -95,9 +148,14 @@ export function ChordGrid({
         <div className="grid-empty">Enter chord progression above</div>
       )}
       {rows.map((row, rowIdx) => (
-        <div key={rowIdx} className="chord-row-line">
-          {row.map((m, i) => {
-            const index = rowIdx * MEASURES_PER_ROW + i;
+        <div
+          key={row.start}
+          className="chord-row-line"
+          ref={(el) => { rowEls.current.set(rowIdx, el); }}
+          style={{ gridTemplateColumns: `repeat(${row.perRow}, 1fr)` }}
+        >
+          {measures.slice(row.start, row.start + row.perRow).map((m, i) => {
+            const index = row.start + i;
             const inLoop = loopLo !== null && loopHi !== null && index >= loopLo && index <= loopHi;
             const isCurrent = index === currentMeasure;
             const cls = [
@@ -120,28 +178,27 @@ export function ChordGrid({
             } else if (m.chords.length === 0) {
               content = <span className="measure-empty">·</span>;
             } else {
+              // The same runs the layout sized this line from, so what is
+              // drawn and what the line was measured for cannot drift apart.
+              const runs = barRuns[index] ?? [];
               content = (
-                <span className="chord-row">
-                  {m.chords.map((c, idx) => (
-                    c.isRepeat ? (
-                      <span
-                        key={idx}
-                        className="chord chord-repeat"
-                        aria-label="repeat previous chord"
-                      >
-                        /
-                      </span>
-                    ) : (
-                      (() => {
-                        const { degree, note } = chordLines(c, transpose, prefer, keyRoot);
+                <span className="chord-line">
+                  {runs.map((r, idx) => (
+                    <span
+                      key={idx}
+                      className="chord-run"
+                      style={{ flexGrow: r.span }}
+                    >
+                      {r.chord && (() => {
+                        const { degree, note } = chordLines(r.chord, transpose, prefer, keyRoot);
                         return (
-                          <span key={idx} className="chord">
-                            <span className="chord-degree">{degree || ' '}</span>
+                          <span className="chord">
+                            <span className="chord-degree">{degree || ' '}</span>
                             <span className="chord-note">{note}</span>
                           </span>
                         );
-                      })()
-                    )
+                      })()}
+                    </span>
                   ))}
                 </span>
               );

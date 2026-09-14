@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
-import { chordDegreeRoot, noteLabel } from '../chord';
-import { expandSong } from '../player';
+import { chordDegreeRoot, noteLabel, SLOTS_PER_MEASURE } from '../chord';
+import { expandSong, slotRuns } from '../slots';
 import {
   chordTones, scaleFor, degreeLabel,
   SOLFEGE_SHARP, SOLFEGE_FLAT, KEY_DEGREE,
@@ -28,24 +28,35 @@ interface Props {
 interface Col {
   bar: number;        // zero-based source measure
   chord: Chord | null;
-  span: number;       // in beats
+  span: number;       // in eighth-note slots
   barStart: boolean;
 }
 
-const BEATS = 4;
 const pc = (n: number) => (((n % 12) + 12) % 12);
+
+// Eight slots to the bar, so an off-beat chord gets a column of its own here
+// too -- and a column that narrow cannot be read. The strip is as wide as its
+// finest column needs and no wider: a sheet of whole-bar chords keeps the
+// width it always had, and one written in eighths gets twice it. The strip
+// scrolls, so width costs nothing but the scrolling.
+const MIN_COL_PX = 27;
+const BAR_MIN_PX = 108;
+
+function barWidthPx(finestSpan: number): number {
+  return Math.max(BAR_MIN_PX, (MIN_COL_PX * SLOTS_PER_MEASURE) / finestSpan);
+}
 
 function buildCols(measures: Measure[]): Col[] {
   const expanded = expandSong({ measures, errors: [] }, 0, -1);
   const cols: Col[] = [];
   for (const m of expanded) {
-    let i = 0;
-    while (i < m.beats.length) {
-      const chord = m.beats[i];
-      let span = 1;
-      while (i + span < m.beats.length && m.beats[i + span] === chord) span++;
-      cols.push({ bar: m.sourceIndex, chord, span, barStart: i === 0 });
-      i += span;
+    for (const run of slotRuns(m.slots)) {
+      cols.push({
+        bar: m.sourceIndex,
+        chord: run.chord,
+        span: run.span,
+        barStart: run.start === 0,
+      });
     }
   }
   return cols;
@@ -83,7 +94,9 @@ export function NoteGrid({
 
   if (cols.length === 0) return null;
 
-  const totalBeats = bars.length * BEATS;
+  const totalSlots = bars.length * SLOTS_PER_MEASURE;
+  // The narrowest column the strip has to draw, which is what sets its width.
+  const finest = cols.reduce((n, c) => Math.min(n, c.span), SLOTS_PER_MEASURE);
 
   // A note's reading. Names and solfege count from the key; degrees count from
   // the chord, because a degree only means anything against its own chord.
@@ -95,13 +108,13 @@ export function NoteGrid({
     return degreeLabel(rel, chord.quality);
   };
 
-  const style = { gridTemplateColumns: `repeat(${totalBeats}, minmax(0, 1fr))` };
+  const style = { gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` };
 
   return (
     <div className="note-grid-wrap" ref={wrapRef}>
       <div
         className="note-grid"
-        style={{ ...style, minWidth: `${bars.length * 108}px` }}
+        style={{ ...style, minWidth: `${bars.length * barWidthPx(finest)}px` }}
       >
         {/* bar numbers */}
         {bars.map((b, i) => (
@@ -113,7 +126,7 @@ export function NoteGrid({
             }}
             className={'ng-bar-no' + (i % 4 === 0 ? ' ng-rule' : '')
               + (b === currentMeasure ? ' ng-now' : '')}
-            style={{ gridColumn: `span ${BEATS}` }}
+            style={{ gridColumn: `span ${SLOTS_PER_MEASURE}` }}
           >
             {b + 1}
           </div>
