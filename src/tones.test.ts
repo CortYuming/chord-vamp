@@ -118,3 +118,18 @@ describe('with the real parser', () => {
     }
   });
 });
+
+// The triangle comes in two characters that look alike: `Δ` (U+0394, the Greek
+// letter) and `∆` (U+2206, what a keyboard gives). A sheet written with either
+// is the same chord.
+describe('the major-seventh triangle', () => {
+  it('reads both spellings of the triangle as maj7', () => {
+    expect(chordTones('∆').tones).toEqual(chordTones('Δ').tones);
+    expect(chordTones('∆7').tones).toEqual(chordTones('maj7').tones);
+    expect(chordTones('∆9').tones).toEqual(chordTones('maj9').tones);
+  });
+
+  it('keeps the seventh a major seventh', () => {
+    expect(chordTones('∆').tones).toContain(11);
+  });
+});
