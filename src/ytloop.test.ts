@@ -115,14 +115,13 @@ describe('jumpToBar', () => {
     location: { href: HERE, origin: 'https://cortyuming.github.io' },
   });
 
-  // The named tab is the one already showing the video: the link lands there
-  // rather than in a new window each time, and the browser brings it forward.
-  it('sends the video tab to the bar', () => {
+  // A new tab, because that is the only kind a browser is sure to show.
+  it('opens the bar in a new tab', () => {
     const win = fakeWindow();
     expect(jumpToBar(SOURCE, 0, win as unknown as Window)).toBe(true);
     expect(win.open).toHaveBeenCalledWith(
       'https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90',
-      'yt-loop',
+      '_blank',
     );
   });
 
@@ -131,7 +130,7 @@ describe('jumpToBar', () => {
     jumpToBar(SOURCE, 1, win as unknown as Window);
     expect(win.open).toHaveBeenCalledWith(
       'https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90',
-      'yt-loop',
+      '_blank',
     );
   });
 

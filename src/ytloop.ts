@@ -14,12 +14,6 @@
 
 import { keyChoiceByLabel } from './chord';
 
-/**
- * What yt-loop calls its own window. Opening a link with this as the target
- * lands in the tab already showing the video instead of opening another one.
- * yt-loop sets `window.name` to the same string; the two have to agree.
- */
-const YT_LOOP_WINDOW = 'yt-loop';
 
 /** The seconds one bar covers in the video. */
 export interface YtBar {
@@ -110,19 +104,18 @@ export function barUrl(src: YtSource, bar: number, here: string): string | null 
 /**
  * Send yt-loop to a bar.
  *
- * Opens the link in the tab named `yt-loop` -- the tab this page was opened
- * from names itself that, so the video comes back in the window it is already
- * in rather than in a pile of new ones, and the browser brings it to the front.
+ * Opens in a new tab, which is the one way a jump is certain to be seen: a
+ * browser brings a freshly opened tab to the front, and will not do the same
+ * for a tab that is merely navigated or asked to focus itself.
  *
- * Moving that player from here without navigating was tried first, and it did
- * work: the video went to the bar with nothing to reload. But a browser will
- * not bring another tab forward on a page's say-so, so the jump happened out of
- * sight, in a tab still behind this one — a bar number that looks like a button
- * doing nothing. A jump you cannot see is not a jump.
+ * Both quieter ways were tried first and both moved the video where nobody was
+ * looking -- a message to the tab this page was opened from, then a link
+ * targeted at that tab by name. Each left the bar number reading as a button
+ * that does nothing. A jump you cannot see is not a jump.
  */
 export function jumpToBar(src: YtSource, bar: number, win: Window = window): boolean {
   const url = barUrl(src, bar, win.location.href);
   if (!url) return false;
-  win.open(url, YT_LOOP_WINDOW);
+  win.open(url, '_blank');
   return true;
 }
