@@ -27,6 +27,12 @@ export interface Prefs {
   theme: 'light' | 'dark' | null;  // null = follow system
   showAnalysis: boolean;
   noteMode: NoteLabelMode;
+  // Which parts of the rhythm section sound. Kept here rather than on the
+  // song: playing without the kit is how someone likes to practise, not
+  // something a particular chart asks for. `drums` is the cymbals and
+  // nothing else so far -- the ride, and the hi-hat foot under it.
+  bass: boolean;
+  drums: boolean;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -35,6 +41,8 @@ const DEFAULT_PREFS: Prefs = {
   theme: 'light',
   showAnalysis: false,
   noteMode: 'interval',
+  bass: true,
+  drums: true,
 };
 
 function genId(): string {

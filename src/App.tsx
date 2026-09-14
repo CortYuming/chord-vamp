@@ -56,6 +56,8 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
+  const [bassOn, setBassOn] = useState<boolean>(() => loadPrefs().bass);
+  const [drumsOn, setDrumsOn] = useState<boolean>(() => loadPrefs().drums);
 
   // A key edit is staged, not applied on selection: the select holds a pending
   // choice until Set or Set and transpose commits it, so a stray scroll over
@@ -65,14 +67,19 @@ function App() {
   const [keyHistory, setKeyHistory] = useState<KeySnapshot[]>([]);
 
   useEffect(() => {
-    savePrefs({ volume, swing, theme, showAnalysis: showNotes, noteMode });
+    savePrefs({ volume, swing, theme, showAnalysis: showNotes, noteMode, bass: bassOn, drums: drumsOn });
     const db = volume <= 0 ? -Infinity : 20 * Math.log10(volume / 100);
     Tone.getDestination().volume.rampTo(db, 0.05);
-  }, [volume, swing, theme, showNotes, noteMode]);
+  }, [volume, swing, theme, showNotes, noteMode, bassOn, drumsOn]);
 
   useEffect(() => {
     if (isPlaying) playerRef.current?.setSwing(swing);
   }, [swing, isPlaying]);
+
+  useEffect(() => {
+    if (isPlaying) playerRef.current?.setParts(bassOn, drumsOn);
+  }, [bassOn, drumsOn, isPlaying]);
+
 
   const playerRef = useRef<Player | null>(null);
   if (!playerRef.current) playerRef.current = new Player();
@@ -190,6 +197,8 @@ function App() {
       loopEnd: loopEnd ?? -1,
       transpose: currentSong.transpose,
       swing,
+      bass: bassOn,
+      drums: drumsOn,
       onBeat: (mIdx, _bIdx, isCountIn) => {
         if (isCountIn) {
           setCurrentMeasure(-1);
@@ -513,6 +522,29 @@ function App() {
             aria-label="Volume"
           />
           <span className="volume-value">{volume}</span>
+        </div>
+
+        <div className="ctrl">
+          <div className="part-seg" role="group" aria-label="Rhythm section">
+            <button
+              type="button"
+              className={'part-btn' + (bassOn ? ' on' : '')}
+              aria-pressed={bassOn}
+              onClick={() => setBassOn(v => !v)}
+              title="Walking bass"
+            >
+              <span className="part-lamp" aria-hidden="true" />Bass
+            </button>
+            <button
+              type="button"
+              className={'part-btn' + (drumsOn ? ' on' : '')}
+              aria-pressed={drumsOn}
+              onClick={() => setDrumsOn(v => !v)}
+              title="Ride and hi-hat"
+            >
+              <span className="part-lamp" aria-hidden="true" />Cymbals
+            </button>
+          </div>
         </div>
 
         <div className="ctrl">

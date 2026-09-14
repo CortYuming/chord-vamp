@@ -600,3 +600,48 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .ng-seg-btn:last-child { border-right: none; }
 .ng-seg-btn:hover { color: var(--fg); }
 .ng-seg-btn.active { background: var(--fg); color: var(--bg); }
+
+/* Bass and Drums, as a pair of switches with a lamp on each. The lamp rather
+   than a filled button: --active already means "the bar sounding now", and a
+   second thing wearing that yellow would read as a third. */
+.part-seg {
+  display: inline-flex;
+  border: 1px solid var(--grid-line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.part-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+  background: var(--paper);
+  color: var(--muted);
+  border: none;
+  border-right: 1px solid var(--grid-line);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.part-btn:last-child { border-right: none; }
+.part-btn:hover:not(:disabled) { color: var(--fg); }
+.part-btn.on { color: var(--fg); }
+
+.part-lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.35;
+  flex: none;
+}
+
+.part-btn.on .part-lamp {
+  background: var(--accent);
+  opacity: 1;
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
