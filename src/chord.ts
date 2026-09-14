@@ -17,6 +17,64 @@ const ROOT_MAP: Record<string, number> = {
   C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11,
 };
 
+/**
+ * The keys on offer, and how they are spelled -- the same list yt-loop puts in
+ * its own Key select, in the same order, so a sheet read in one app is named
+ * the same in the other.
+ *
+ * `tonic` is where do sits, which for a minor key is its relative major: yt-loop
+ * counts Am from C, and the two apps have to count from the same place or the
+ * degrees under a chord say different things about one sheet.
+ *
+ * `label` is the spelling that travels in a link (`Bb`, `F#m`); `text` is the
+ * spelling a reader gets (`B♭`, `F♯m`).
+ */
+export interface KeyChoice {
+  label: string;
+  text: string;
+  tonic: number;
+  minor: boolean;
+}
+
+const MAJOR_KEYS: [string, string][] = [
+  ['C', 'C'], ['G', 'G'], ['D', 'D'], ['A', 'A'], ['E', 'E'], ['B', 'B'],
+  ['F#', 'F♯'], ['Db', 'D♭'], ['Ab', 'A♭'], ['Eb', 'E♭'], ['Bb', 'B♭'], ['F', 'F'],
+];
+
+const MINOR_KEYS: [string, string][] = [
+  ['Am', 'Am'], ['Em', 'Em'], ['Bm', 'Bm'], ['F#m', 'F♯m'], ['C#m', 'C♯m'], ['G#m', 'G♯m'],
+  ['Ebm', 'E♭m'], ['Bbm', 'B♭m'], ['Fm', 'Fm'], ['Cm', 'Cm'], ['Gm', 'Gm'], ['Dm', 'Dm'],
+];
+
+function keyTonic(label: string, minor: boolean): number {
+  const letter = label[0].toUpperCase();
+  const sign = label[1] === '#' ? 1 : label[1] === 'b' ? -1 : 0;
+  const semi = (ROOT_MAP[letter] + sign + 12) % 12;
+  return minor ? (semi + 3) % 12 : semi;
+}
+
+export const KEY_CHOICES: KeyChoice[] = [
+  ...MAJOR_KEYS.map(([label, text]) => ({ label, text, tonic: keyTonic(label, false), minor: false })),
+  ...MINOR_KEYS.map(([label, text]) => ({ label, text, tonic: keyTonic(label, true), minor: true })),
+];
+
+/** The key a link names, or null for a spelling this list does not hold. */
+export function keyChoiceByLabel(label: string): KeyChoice | null {
+  const want = normalizeAccidental(label.trim());
+  return KEY_CHOICES.find(k => k.label.toLowerCase() === want.toLowerCase()) ?? null;
+}
+
+/**
+ * Which entry a sheet is sitting on. Two entries share every tonic -- a major
+ * key and its relative minor are one set of notes -- so which of the pair is
+ * meant is carried alongside rather than worked out from the music.
+ */
+export function keyChoiceFor(tonic: number, minor: boolean): KeyChoice {
+  const semi = ((tonic % 12) + 12) % 12;
+  return KEY_CHOICES.find(k => k.tonic === semi && k.minor === minor)
+    ?? KEY_CHOICES.find(k => k.tonic === semi)!;
+}
+
 export type Accidental = 'sharp' | 'flat';
 
 const KEY_PREFER: Accidental[] = [

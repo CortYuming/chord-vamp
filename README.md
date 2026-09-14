@@ -21,6 +21,7 @@ https://cortyuming.github.io/chord-vamp/
 - Save named songs to localStorage with BPM and transpose baked in
 - Tap tempo
 - Space bar toggles play
+- Opens a sheet transcribed in [yt-loop](https://cortyuming.github.io/yt-loop/): its bars arrive in the link, and every bar number leads back to the second of the video it came from
 
 ## Chord Input Grammar
 
@@ -38,6 +39,47 @@ bass      := root
 - Multiple chords in a measure split the four beats: 2 chords → 2+2, 3 chords → 2+1+1, 4 chords → 1+1+1+1.
 - `.` repeats the previous chord within the same measure only; it does not carry across bar lines.
 - `N.C.` is recognized as no-chord (silent).
+
+## Sheets from yt-loop
+
+[yt-loop](https://cortyuming.github.io/yt-loop/) transcribes a video bar by bar.
+Its **chord-vamp ↗** button opens the sheet here: the bars, the seconds each one
+covers, the key and the video's title all travel in the link, written at the
+moment the button is pressed.
+
+```
+?v=<videoId>&k=<bars>&t=<times>&key=<key>&title=<video title>
+```
+
+The key arrives spelled as the sheet spells it — `Bb`, `F#m`. The Key list here
+holds the same twenty-four keys yt-loop offers, in its order and its spellings,
+and a minor key counts from its relative major the way yt-loop counts it, so the
+degrees under a chord read the same in both apps.
+
+The sheet is **read, not written**. It belongs to yt-loop, where it is being
+made, and this app has nothing to say back about a transcription: the chord box
+is greyed, and Set and transpose — the one control that rewrites the chords — is
+gone. Everything that plays the sheet rather than changing it stands: tempo, tap,
+♭ / ♯, Set, the loop range. A sheet edited over there gets here by pressing the
+button again; nothing is stored on either side to be kept in step.
+
+Each bar number is a link back to the video at the second that bar starts. It is
+drawn as a link from the start rather than appearing under a pointer, since a
+chart is read on a phone as often as at a desk. It opens in a new tab, which is the one
+way a jump is certain to be seen.
+
+Both quieter ways were tried first. Moving the player in the tab this page was
+opened from worked — the video went to the bar with nothing to reload — and so
+did navigating that tab by name. Neither was ever brought to the front: a
+browser will not raise another tab because a page asked it to, so the jump
+happened out of sight and the bar number read as a button doing nothing. A jump
+you cannot see is not a jump.
+
+BPM, transposition and the loop range are remembered per video under
+`chord-vamp:ytloop:v1`, so the same button next week opens the tune where it was
+left. Saved songs are untouched: a sheet from yt-loop is not one of them, is not
+in the list, and does not take the place of whatever song was being worked on
+here.
 
 ## Development
 

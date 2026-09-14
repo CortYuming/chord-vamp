@@ -15,6 +15,20 @@ interface Props {
   onMeasureDown: (i: number) => void;
   onMeasureEnter: (i: number) => void;
   onGridUp: () => void;
+  /**
+   * Where a bar number leads, for a sheet read from yt-loop: back to the video
+   * at the second that bar starts. Undefined for a sheet typed here, and null
+   * for a bar nobody has timed yet -- the number is then the plain label it has
+   * always been.
+   */
+  barHref?: (i: number) => string | null;
+  /**
+   * Taking the number, rather than following the link. The video is usually
+   * already open in the tab this page came from, and moving that player beats
+   * loading a second copy of it -- see ytloop.ts. The href stays underneath for
+   * a middle click, and for anyone who wants the address itself.
+   */
+  onBarJump?: (i: number) => void;
 }
 
 // Where the line being played is held on screen: a third of the way down.
@@ -52,6 +66,43 @@ function SimileMark({ variant }: { variant: 'single' | 'double' }) {
   );
 }
 
+// The number in the corner of a bar. A plain label for a sheet typed here; for
+// one read from yt-loop, the way back to the second of the video that bar was
+// transcribed from.
+//
+// Drawn as a link and not as a hover, so a finger finds it: the tap target is
+// padded out around the digits while the digits stay where they were.
+// mousedown is taken here rather than left to the bar, which would read the
+// press as the start of a loop drag.
+function BarNumber({
+  index,
+  href,
+  onJump,
+}: {
+  index: number;
+  href: string | null;
+  onJump?: (i: number) => void;
+}) {
+  if (!href) return <span className="measure-index">{index + 1}</span>;
+  return (
+    <a
+      className="measure-index measure-index-link"
+      href={href}
+      title={`Open bar ${index + 1} in yt-loop`}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        if (!onJump) return;
+        // Leave a modified click to the browser: that is someone asking for the
+        // address itself, in a tab or a clipboard.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onJump(index);
+      }}
+    >{index + 1}</a>
+  );
+}
+
 function chordLines(
   chord: Chord,
   transpose: number,
@@ -82,6 +133,8 @@ export function ChordGrid({
   onMeasureDown,
   onMeasureEnter,
   onGridUp,
+  barHref,
+  onBarJump,
 }: Props) {
   // The grid's own width, watched rather than read once: the page is as wide
   // as the window now, so this changes without the sheet changing.
@@ -211,7 +264,11 @@ export function ChordGrid({
                 onMouseDown={(e) => { e.preventDefault(); onMeasureDown(index); }}
                 onMouseEnter={() => onMeasureEnter(index)}
               >
-                <span className="measure-index">{index + 1}</span>
+                <BarNumber
+                  index={index}
+                  href={barHref ? barHref(index) : null}
+                  onJump={onBarJump}
+                />
                 {content}
               </div>
             );
