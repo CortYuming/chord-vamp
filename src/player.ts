@@ -98,6 +98,13 @@ export class Player {
   private line: (number | null)[] = [];
   private slotIndex = 0;
   private countInSlotsLeft = 0;
+  // One slot of the run, pinned to the audio-clock time it falls on, from
+  // which position() reads off where the music is at any moment. A single
+  // anchor rather than the latest slot each time: with swing the off-beats
+  // sound late by design, and measuring from each one in turn drags the
+  // reading back and forth around the beat it is supposed to be following.
+  private anchorTime = -1;
+  private anchorSlot = 0;
   private cfg: PlayerConfig | null = null;
 
   get playState(): PlayerState {
@@ -160,6 +167,9 @@ export class Player {
     // transport will move again.
     await Tone.start();
     this.state = 'playing';
+    // The clock ran on while the music stood still, so the line from the old
+    // anchor no longer describes it.
+    this.anchorTime = -1;
     Tone.getTransport().start();
     this.startDrawing();
   }
@@ -194,6 +204,7 @@ export class Player {
     const at = this.expanded.findIndex((m) => m.sourceIndex === sourceIndex);
     if (at < 0) return;
     this.slotIndex = at * SLOTS_PER_MEASURE;
+    this.anchorTime = -1;
     // What was queued belongs to the bar being left behind.
     this.draw.clear();
   }
@@ -273,6 +284,11 @@ export class Player {
     const bIdx = Math.floor(slotInMeasure / SLOTS_PER_BEAT);
     const isDownbeat = slotInMeasure % SLOTS_PER_BEAT === 0;
 
+    if (this.anchorTime < 0) {
+      this.anchorTime = time;
+      this.anchorSlot = this.slotIndex;
+    }
+
     if (this.cfg.drums) {
       for (const hit of drumsForSlot(slotInMeasure, this.cfg.swing)) this.playDrum(hit, time);
     }
@@ -292,6 +308,36 @@ export class Player {
     }
 
     this.slotIndex++;
+  }
+
+  /**
+   * Where the music is, in bars of the sheet, fractions and all: 9.5 is the
+   * middle of bar 10. Null when there is nothing to follow -- stopped, held,
+   * counting in, or between an anchor being dropped and the next slot.
+   *
+   * Straight line from the anchor, in even eighths. The ride swings and the
+   * bass plays behind it, but a reader's eye travels at the tempo, so the
+   * reading is the tempo rather than the last thing that was struck.
+   */
+  position(): number | null {
+    if (this.state !== 'playing' || this.anchorTime < 0) return null;
+    if (this.countInSlotsLeft > 0) return null;
+    const total = this.expanded.length * SLOTS_PER_MEASURE;
+    if (total === 0) return null;
+    const slotSeconds = 30 / (this.cfg?.bpm ?? 120);
+    // The transport schedules ahead of the sound, so for a moment after an
+    // anchor is dropped the clock has not reached it yet. The music has not
+    // either: it waits on the anchor rather than running backwards into the
+    // bar before it.
+    const slots = Math.max(
+      this.anchorSlot,
+      this.anchorSlot + (Tone.getContext().currentTime - this.anchorTime) / slotSeconds,
+    );
+    const at = slots % total;
+    const mIdx = Math.floor(at / SLOTS_PER_MEASURE);
+    const measure = this.expanded[mIdx];
+    if (!measure) return null;
+    return measure.sourceIndex + (at - mIdx * SLOTS_PER_MEASURE) / SLOTS_PER_MEASURE;
   }
 
   private playDrum(hit: DrumHit, time: number) {
@@ -316,6 +362,7 @@ export class Player {
 
   private disposeInternal() {
     this.state = 'stopped';
+    this.anchorTime = -1;
     this.stopDrawing();
     this.draw.clear();
     if (this.repeatId !== null) {
@@ -332,6 +379,9 @@ export class Player {
   setBpm(bpm: number) {
     Tone.getTransport().bpm.value = bpm;
     if (this.cfg) this.cfg.bpm = bpm;
+    // Slots are a different length from here on, so the line is measured again
+    // from the next one.
+    this.anchorTime = -1;
   }
 
   setTranspose(semitones: number) {

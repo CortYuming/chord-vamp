@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
 import { chordDegreeRoot, noteLabel, SLOTS_PER_MEASURE } from '../chord';
 import { expandSong, slotRuns } from '../slots';
@@ -17,6 +17,10 @@ interface Props {
   keyRoot: number;
   mode: NoteLabelMode;
   currentMeasure: number;
+  /** Whether the music is running, which decides how the strip is followed. */
+  playing: boolean;
+  /** Where the music is, in fractional bars. See Player.position(). */
+  position: () => number | null;
   selected: number | null;
   onSelect: (i: number) => void;
 }
@@ -64,7 +68,7 @@ function buildCols(measures: Measure[]): Col[] {
 
 export function NoteGrid({
   measures, transpose, prefer, keyRoot, mode,
-  currentMeasure, selected, onSelect,
+  currentMeasure, playing, position, selected, onSelect,
 }: Props) {
   const cols = useMemo(() => buildCols(measures), [measures]);
   const bars = useMemo(
@@ -79,18 +83,80 @@ export function NoteGrid({
   // worth more room than what has just gone by.
   const wrapRef = useRef<HTMLDivElement>(null);
   const barEls = useRef(new Map<number, HTMLDivElement>());
+
+  // The line the music passes under. Drawn over the strip rather than in it, so
+  // it can stand wherever the moment falls inside a bar instead of on the bar
+  // line: what this view is for is what is sounding now, and at the tempos it
+  // gets read at a bar is two or three seconds of it.
+  const lineRef = useRef<HTMLDivElement>(null);
+  const placeLine = useCallback(() => {
+    const wrap = wrapRef.current;
+    const line = lineRef.current;
+    if (!wrap || !line) return;
+    const at = playing ? position() : null;
+    const bar = at === null ? currentMeasure : Math.floor(at);
+    const el = bar >= 0 ? barEls.current.get(bar) : undefined;
+    if (!el) {
+      line.hidden = true;
+      return;
+    }
+    const into = at === null ? 0 : at - bar;
+    line.hidden = false;
+    line.style.transform =
+      `translateX(${el.offsetLeft + into * el.offsetWidth - wrap.scrollLeft}px)`;
+  }, [playing, position, currentMeasure]);
+
+  // The strip moves for three reasons -- the frame loop, a jump to a bar, a
+  // hand on the scrollbar -- and the line keeps up with all of them.
   useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    wrap.addEventListener('scroll', placeLine, { passive: true });
+    return () => wrap.removeEventListener('scroll', placeLine);
+  }, [placeLine]);
+
+  useEffect(placeLine, [placeLine]);
+  const still = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Moving the playhead by hand, or following it while the music is held: one
+  // bar at a time, since there is nothing in between to follow.
+  useEffect(() => {
+    if (playing && !still) return;
     if (currentMeasure < 0) return;
     const wrap = wrapRef.current;
     const el = barEls.current.get(currentMeasure);
     if (!wrap || !el) return;
     const target = el.offsetLeft - wrap.clientWidth / 3;
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     wrap.scrollTo({
       left: Math.max(0, target),
       behavior: still ? 'auto' : 'smooth',
     });
-  }, [currentMeasure]);
+  }, [currentMeasure, playing, still]);
+
+  // Playing: the strip travels with the music rather than stepping from bar to
+  // bar. A bar takes a bar's worth of time to cross, so the notes pass the same
+  // point at the same rate they are heard -- what the eye is doing while
+  // reading is the same thing the ear is doing, and a jump every four beats
+  // keeps interrupting it.
+  useEffect(() => {
+    if (!playing || still) return;
+    let frame = 0;
+    const follow = () => {
+      frame = requestAnimationFrame(follow);
+      const wrap = wrapRef.current;
+      const at = position();
+      if (!wrap || at === null) return;
+      const bar = Math.floor(at);
+      const el = barEls.current.get(bar);
+      if (!el) return;
+      const x = el.offsetLeft + (at - bar) * el.offsetWidth - wrap.clientWidth / 3;
+      wrap.scrollLeft = Math.max(0, x);
+      placeLine();
+    };
+    frame = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, position, still, placeLine]);
 
   if (cols.length === 0) return null;
 
@@ -111,7 +177,9 @@ export function NoteGrid({
   const style = { gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` };
 
   return (
-    <div className="note-grid-wrap" ref={wrapRef}>
+    <div className="note-grid-frame">
+      <div className="ng-playhead" ref={lineRef} hidden />
+      <div className="note-grid-wrap" ref={wrapRef}>
       <div
         className="note-grid"
         style={{ ...style, minWidth: `${bars.length * barWidthPx(finest)}px` }}
@@ -179,6 +247,7 @@ export function NoteGrid({
             );
           })
         ))}
+      </div>
       </div>
     </div>
   );

@@ -271,6 +271,10 @@ function App() {
     return [0, parsed.measures.length - 1];
   }, [loopStart, loopEnd, parsed.measures.length]);
 
+  // Where the music has got to, for a view that follows it between beats.
+  // Stable across renders: the strip's frame loop holds on to it.
+  const playPosition = useCallback(() => playerRef.current?.position() ?? null, []);
+
   // Put the playhead on a bar. While the music is running it takes the sound
   // with it; stopped, it is where Play will begin.
   const movePoint = (measureIdx: number) => {
@@ -898,6 +902,8 @@ function App() {
           keyRoot={displayedKey}
           mode={noteMode}
           currentMeasure={currentMeasure}
+          playing={isPlaying}
+          position={playPosition}
           selected={noteSel}
           onSelect={setNoteSel}
         />

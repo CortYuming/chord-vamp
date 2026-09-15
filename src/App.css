@@ -735,6 +735,26 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
    a hairline on the heading reads as a wall down the grid. */
 .ng-rule { border-left: 1.5px dashed color-mix(in srgb, var(--grid-line) 40%, transparent); }
 
+/* The playhead, over the strip and outside its scrolling, so it holds its
+   place while the notes travel under it. */
+.note-grid-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+.ng-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  background: var(--active);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ng-playhead[hidden] { display: none; }
+
 .note-grid-controls {
   display: flex;
   flex-wrap: wrap;
