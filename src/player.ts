@@ -27,10 +27,13 @@ const RIDE_LEVEL = 0.45;
 const RIDE_ACCENT_LEVEL = 0.75;
 const HIHAT_LEVEL = 0.5;
 
-// Where each voice sits in the mix, in decibels.
-const BASS_DB = -4;
-const RIDE_DB = -32;
-const HIHAT_DB = -24;
+// Where each voice sits in the mix, in decibels. The kit sits under the bass,
+// not thirty decibels under it: at -32 the ride was struck at 0.45 velocity on
+// top of that and never reached the room. These were set by ear, the kit
+// against the bass, with the limiter below catching the peaks.
+const BASS_DB = -0.5;
+const RIDE_DB = -16.5;
+const HIHAT_DB = -14.5;
 
 export interface PlayerConfig {
   song: ParsedSong;
@@ -99,14 +102,18 @@ export class Player {
   }
 
   private buildKit(): Kit {
-    const clickFilter = new Tone.Filter({ frequency: 4000, type: 'highpass' }).toDestination();
+    // One ceiling for the whole section: the voices are summed here, and a
+    // bass note landing under a ride accent adds up past what each is set to.
+    const out = new Tone.Limiter(-1).toDestination();
+
+    const clickFilter = new Tone.Filter({ frequency: 4000, type: 'highpass' }).connect(out);
     const click = new Tone.NoiseSynth({
       noise: { type: 'white' },
       envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 },
       volume: -6,
     }).connect(clickFilter);
 
-    const hihatFilter = new Tone.Filter({ frequency: 8000, type: 'highpass' }).toDestination();
+    const hihatFilter = new Tone.Filter({ frequency: 8000, type: 'highpass' }).connect(out);
     const hihat = new Tone.NoiseSynth({
       noise: { type: 'white' },
       envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
@@ -123,16 +130,19 @@ export class Player {
       resonance: 4000,
       octaves: 1.2,
       volume: RIDE_DB,
-    }).toDestination();
+    }).connect(out);
 
 
     const bass = new Tone.Synth({
       oscillator: { type: 'sine' },
       envelope: { attack: 0.005, decay: 0.25, sustain: 0.2, release: 0.3 },
       volume: BASS_DB,
-    }).toDestination();
+    }).connect(out);
 
-    return { click, hihat, ride, bass, nodes: [click, hihat, ride, bass, clickFilter, hihatFilter] };
+    return {
+      click, hihat, ride, bass,
+      nodes: [click, hihat, ride, bass, clickFilter, hihatFilter, out],
+    };
   }
 
   private tick(time: number) {
