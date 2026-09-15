@@ -182,8 +182,33 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   text-transform: uppercase;
 }
 
+/* The sheet, folded away under the grid it built: button first, the editor
+   under the button that opened it, errors under both. */
 .chord-input-section {
   margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chord-input-section .chord-input { align-self: stretch; }
+
+.sheet-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* The shortcut, said on the button rather than left to be discovered. */
+.sheet-toggle kbd {
+  font-family: 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--muted);
 }
 
 .key-section {
@@ -234,7 +259,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--paper);
   color: inherit;
   resize: vertical;
-  min-height: 60px;
+  min-height: 300px;
 }
 
 /* A sheet being read rather than written -- yt-loop's. Greyed like any field
