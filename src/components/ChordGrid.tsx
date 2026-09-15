@@ -36,6 +36,12 @@ interface Props {
 // comes next -- a reader is looking ahead, so most of the glass goes there.
 const PLAYHEAD_ANCHOR = 1 / 3;
 
+// Whether any part of a line is in the window.
+function onScreen(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  return r.bottom > 0 && r.top < window.innerHeight;
+}
+
 function SimileMark({ variant }: { variant: 'single' | 'double' }) {
   return (
     <svg
@@ -170,14 +176,30 @@ export function ChordGrid({
       return;
     }
     if (row === lastRow.current) return;
+
+    // Nothing to scroll to yet -- a line still being laid out, say. Leave the
+    // row unrecorded so the next beat tries it again: taking it as done here
+    // would retire a line nobody was ever moved to, and the playhead would
+    // spend that whole line off the bottom of the window.
+    const el = rowEls.current.get(row);
+    if (!el) return;
+
+    // Follow only while the reader is with the music. Once the playing line has
+    // been scrolled out of the window -- someone is reading the analysis at the
+    // foot of the page -- moving the page under them is an interruption rather
+    // than a service, so the chart is left where they put it. Scrolling the
+    // playing line back into view starts the following again by itself.
+    const leaving = lastRow.current >= 0 ? rowEls.current.get(lastRow.current) : null;
+    if (leaving && !onScreen(leaving)) {
+      lastRow.current = row;
+      return;
+    }
+
     // A row before the one just played means the loop has come round. That is
     // a jump rather than a journey: sliding the whole chart back past the
     // reader's eye is a worse interruption than simply being there.
     const wrapped = row < lastRow.current;
     lastRow.current = row;
-
-    const el = rowEls.current.get(row);
-    if (!el) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const top = el.getBoundingClientRect().top + window.scrollY
       - window.innerHeight * PLAYHEAD_ANCHOR;
