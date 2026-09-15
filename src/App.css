@@ -298,6 +298,27 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .play-btn.playing { background: var(--active); color: #201d18; }
 
+/* Held, not stopped. The colour of the playing bar stays on the button, in the
+   edge rather than the fill, so the eye can tell at a glance which of the two
+   the next press will do. An inset ring rather than a border: a thicker border
+   would grow the button and shunt the row sideways every time it is pressed. */
+.play-btn.paused {
+  box-shadow: inset 0 0 0 2px var(--active);
+}
+
+.transport-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pressed far less often than the one beside it, so it is given the size that
+   says so rather than a second block of the same weight. */
+.rewind-btn {
+  padding: 8px 10px;
+  font-size: 15px;
+}
+
 .ctrl {
   display: flex;
   align-items: center;
@@ -327,10 +348,43 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: inherit;
 }
 
-.counting-indicator {
-  margin-left: auto;
-  font-weight: 700;
-  color: var(--accent);
+/* The count-in, held in the middle of the window. Fixed rather than placed in
+   the flow: the page scrolls under the playhead, and the count has to stay
+   where the eye was left. */
+.count-in {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* Everything underneath stays operable through it. */
+  pointer-events: none;
+  z-index: 20;
+}
+
+.count-in-dots {
+  display: flex;
+  gap: 18px;
+}
+
+/* Each beat as it is struck. Lifted off the chart by a shadow instead of a
+   panel, so the bar that is about to sound is readable underneath. */
+.count-in-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--grid-line);
+  background: var(--bg);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  transition: background-color 90ms linear, border-color 90ms linear;
+}
+
+.count-in-dot.lit {
+  background: var(--active);
+  border-color: var(--active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count-in-dot { transition: none; }
 }
 
 .loop-status {
@@ -422,6 +476,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 .measure-current.measure-loop { background: var(--active); }
+
+/* The bar the playhead is on is already yellow, so the grey hover every other
+   bar wears does nothing on it -- the one bar you are most likely to point at
+   is the one that cannot show it. Thinned instead of tinted: the same yellow,
+   visibly touched, and still plainly the playhead. */
+.measure-current:hover { background: color-mix(in srgb, var(--active) 85%, transparent); }
 
 .measure-index {
   position: absolute;

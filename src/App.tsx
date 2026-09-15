@@ -6,7 +6,9 @@ import {
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
+import type { PlayerState } from './player';
 import { Player } from './player';
+import { BEATS_PER_MEASURE } from './bass';
 import * as Tone from 'tone';
 import {
   loadCurrent, loadPrefs, loadSongs, loadYtPrefs, newSong, saveCurrent, savePrefs, saveYtPrefs,
@@ -94,12 +96,26 @@ function App() {
     if (YT_SOURCE) return;
     saveCurrent(currentSong);
   }, [currentSong]);
-  const [isPlaying, setIsPlaying] = useState(false);
+  // Three states, not two: stopped is at the top of the chart, paused is
+  // standing in the middle of it. Space moves between playing and paused, and
+  // Stop is what goes back to the top.
+  const [playState, setPlayState] = useState<PlayerState>('stopped');
+  const isPlaying = playState === 'playing';
+  // Playing or paused: the player is built either way, so a tempo or a part
+  // changed while the music is held still applies to it.
+  const isRunning = playState !== 'stopped';
+  // The playhead: the bar that is sounding, or -- stopped -- the bar the next
+  // Play will start from. Moved by the arrows and by clicking a bar, so it
+  // outlives a run rather than being wiped when the music stops. -1 is a chart
+  // nobody has pointed at yet, which starts from the top.
   const [currentMeasure, setCurrentMeasure] = useState(-1);
-  const [countingDown, setCountingDown] = useState(0);
+  // The count-in, as the number of beats that have been struck: null while
+  // there is no count to show, then 0 the moment Play is pressed and one more
+  // on every click. A count that is counted up rather than taken away survives
+  // a frame busy enough to carry two beats at once.
+  const [countInBeat, setCountInBeat] = useState<number | null>(null);
   const [loopStart, setLoopStart] = useState<number | null>(YT_PREFS?.loopStart ?? null);
   const [loopEnd, setLoopEnd] = useState<number | null>(YT_PREFS?.loopEnd ?? null);
-  const [isDragging, setIsDragging] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
@@ -120,12 +136,12 @@ function App() {
   }, [volume, swing, theme, showNotes, noteMode, bassOn, drumsOn]);
 
   useEffect(() => {
-    if (isPlaying) playerRef.current?.setSwing(swing);
-  }, [swing, isPlaying]);
+    if (isRunning) playerRef.current?.setSwing(swing);
+  }, [swing, isRunning]);
 
   useEffect(() => {
-    if (isPlaying) playerRef.current?.setParts(bassOn, drumsOn);
-  }, [bassOn, drumsOn, isPlaying]);
+    if (isRunning) playerRef.current?.setParts(bassOn, drumsOn);
+  }, [bassOn, drumsOn, isRunning]);
 
 
   const playerRef = useRef<Player | null>(null);
@@ -190,12 +206,6 @@ function App() {
     ]);
   };
 
-  // Semitones are kept in -6..6 so the readout says -1 rather than +11.
-  const wrapSemitones = (n: number) => {
-    const m = ((n % 12) + 12) % 12;
-    return m > 6 ? m - 12 : m;
-  };
-
   // Set: the chords stay exactly as typed, and the sheet is read against the
   // chosen key. iReal Pro's Set, and the fix for a tune that opens off the
   // tonic.
@@ -249,22 +259,49 @@ function App() {
       + `${noteLabel(sounding, keyPreferFor(sounding))} (${sign}${prev.transpose})${rewritten}`;
   })();
 
-  const handleTranspose = (delta: number) => {
-    pushKeyHistory();
-    update({ transpose: wrapSemitones(currentSong.transpose + delta) });
+  /**
+   * The bars the playhead may stand on: the loop when there is one, otherwise
+   * the whole sheet. An empty sheet gives an empty range, which every move
+   * below checks for.
+   */
+  const pointRange = useMemo<[number, number]>(() => {
+    if (loopStart !== null && loopEnd !== null) {
+      return [Math.min(loopStart, loopEnd), Math.max(loopStart, loopEnd)];
+    }
+    return [0, parsed.measures.length - 1];
+  }, [loopStart, loopEnd, parsed.measures.length]);
+
+  // Put the playhead on a bar. While the music is running it takes the sound
+  // with it; stopped, it is where Play will begin.
+  const movePoint = (measureIdx: number) => {
+    const [lo, hi] = pointRange;
+    if (hi < lo || measureIdx < lo || measureIdx > hi) return;
+    setCurrentMeasure(measureIdx);
+    playerRef.current?.seek(measureIdx);
   };
 
-  const handlePlay = async () => {
-    if (isPlaying) {
-      playerRef.current?.stop();
-      return;
-    }
+  // One bar left or right, round the ends of the loop -- or of the sheet, when
+  // there is no loop. A playhead that is nowhere yet starts from the first bar.
+  const stepPoint = (delta: number) => {
+    const [lo, hi] = pointRange;
+    if (hi < lo) return;
+    const span = hi - lo + 1;
+    const from = currentMeasure >= lo && currentMeasure <= hi ? currentMeasure : lo;
+    movePoint(lo + ((((from - lo + delta) % span) + span) % span));
+  };
+
+  // From the playhead, with the count if the song asks for one. Pressing Play
+  // on a chart that has never been pointed at starts it at the top.
+  const startRun = async () => {
     if (parsed.measures.length === 0) return;
     const player = playerRef.current!;
     const hasLoop = loopStart !== null && loopEnd !== null;
     const useCountIn = currentSong.countIn && !hasLoop;
-    setIsPlaying(true);
-    setCountingDown(useCountIn ? 4 : 0);
+    const [lo, hi] = pointRange;
+    const from = currentMeasure >= lo && currentMeasure <= hi ? currentMeasure : lo;
+    setCurrentMeasure(from);
+    setPlayState('playing');
+    setCountInBeat(useCountIn ? 0 : null);
     await player.start({
       song: parsed,
       bpm: currentSong.bpm,
@@ -272,33 +309,69 @@ function App() {
       loopStart: loopStart ?? 0,
       loopEnd: loopEnd ?? -1,
       transpose: currentSong.transpose,
+      startMeasure: from,
       swing,
       bass: bassOn,
       drums: drumsOn,
-      onBeat: (mIdx, _bIdx, isCountIn) => {
+      // The count leaves the playhead where it is: the bar about to sound is
+      // the one to be looking at while the four beats go by.
+      onBeat: (mIdx, bIdx, isCountIn) => {
         if (isCountIn) {
-          setCurrentMeasure(-1);
-          setCountingDown(prev => prev - 1);
+          setCountInBeat(bIdx + 1);
         } else {
           setCurrentMeasure(mIdx);
-          setCountingDown(0);
+          setCountInBeat(null);
         }
       },
       onStop: () => {
-        setIsPlaying(false);
-        setCurrentMeasure(-1);
-        setCountingDown(0);
+        setPlayState('stopped');
+        setCountInBeat(null);
       },
     });
   };
 
-  useEffect(() => {
-    if (isPlaying) playerRef.current?.setBpm(currentSong.bpm);
-  }, [currentSong.bpm, isPlaying]);
+  // The one button, and the space bar behind it: play, hold, go on from where
+  // it was held. Getting back to the top is the rewind button's job.
+  const handlePlay = async () => {
+    const player = playerRef.current!;
+    if (playState === 'playing') {
+      player.pause();
+      setPlayState('paused');
+      // Held during the count: the beats struck so far are given back, since
+      // the count starts over on the way in.
+      if (countInBeat !== null) setCountInBeat(0);
+      return;
+    }
+    if (playState === 'paused') {
+      // Two beats counted and then a pause is not a count-in. Anything held
+      // during the count goes back to the start of it rather than picking the
+      // four up halfway.
+      if (countInBeat !== null) {
+        await startRun();
+        return;
+      }
+      setPlayState('playing');
+      await player.resume();
+      return;
+    }
+    await startRun();
+  };
+
+  // Back to the top, standing still: the run is torn down and the playhead is
+  // put on the first bar of what is being played -- the loop's first bar when
+  // there is a loop.
+  const handleRewind = () => {
+    playerRef.current?.stop();
+    setCurrentMeasure(pointRange[0]);
+  };
 
   useEffect(() => {
-    if (isPlaying) playerRef.current?.setTranspose(currentSong.transpose);
-  }, [currentSong.transpose, isPlaying]);
+    if (isRunning) playerRef.current?.setBpm(currentSong.bpm);
+  }, [currentSong.bpm, isRunning]);
+
+  useEffect(() => {
+    if (isRunning) playerRef.current?.setTranspose(currentSong.transpose);
+  }, [currentSong.transpose, isRunning]);
 
   const nameTrimmed = currentSong.name.trim();
   const savedVersion = useMemo(
@@ -370,25 +443,42 @@ function App() {
     handleNew();
   };
 
+  // One press on the bars means two things, told apart by whether the pointer
+  // travelled: let go on the bar it started on and it is a click, which moves
+  // the playhead; drag across bars and it is a loop. Kept in refs because a
+  // drag reads them between renders -- the loop drawn as it goes is the state
+  // that does re-render.
+  const dragFrom = useRef<number | null>(null);
+  const dragged = useRef(false);
+
   const handleMeasureDown = (i: number) => {
-    if (isPlaying) playerRef.current?.stop();
-    setIsDragging(true);
-    setLoopStart(i);
-    setLoopEnd(i);
+    dragFrom.current = i;
+    dragged.current = false;
   };
 
   const handleMeasureEnter = (i: number) => {
-    if (isDragging) setLoopEnd(i);
+    const from = dragFrom.current;
+    if (from === null) return;
+    if (i === from && !dragged.current) return;
+    dragged.current = true;
+    setLoopStart(from);
+    setLoopEnd(i);
   };
 
   const handleGridUp = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      if (loopStart !== null && loopEnd !== null && loopStart === loopEnd) {
-        setLoopStart(null);
-        setLoopEnd(null);
+    const from = dragFrom.current;
+    if (from === null) return;
+    dragFrom.current = null;
+    if (dragged.current) {
+      // The loop is not the one the run was built on any more, so the run goes,
+      // and the playhead moves to the first bar of what was just marked out.
+      if (isRunning) playerRef.current?.stop();
+      if (loopStart !== null && loopEnd !== null) {
+        setCurrentMeasure(Math.min(loopStart, loopEnd));
       }
+      return;
     }
+    movePoint(from);
   };
 
   const clearLoop = () => {
@@ -415,8 +505,8 @@ function App() {
       if (stepped && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       e.preventDefault();
       if (target instanceof HTMLElement) target.blur();
-      if (e.key === 'ArrowLeft') handleTranspose(-1);
-      else if (e.key === 'ArrowRight') handleTranspose(1);
+      if (e.key === 'ArrowLeft') stepPoint(-1);
+      else if (e.key === 'ArrowRight') stepPoint(1);
       else if (e.key === ' ') handlePlay();
       else setShowSheet(v => !v);
     };
@@ -608,12 +698,24 @@ function App() {
       </section>
 
       <section className="transport">
-        <button
-          className={'play-btn ' + (isPlaying ? 'playing' : '')}
-          onClick={handlePlay}
-        >
-          {isPlaying ? '■ Stop' : '▶ Play'}
-        </button>
+        {/* Two buttons that never move: the space bar's own button, and the
+            way back to the top on its left. Nothing to go back from while the
+            chart sits at the top, so there it is simply not available. */}
+        <div className="transport-buttons">
+          <button
+            className="rewind-btn"
+            onClick={handleRewind}
+            disabled={playState === 'stopped'}
+            title="Back to the top"
+            aria-label="Back to the top"
+          >⏮</button>
+          <button
+            className={'play-btn ' + (playState === 'stopped' ? '' : playState)}
+            onClick={handlePlay}
+          >
+            {isPlaying ? '⏸ Pause' : '▶ Play'}
+          </button>
+        </div>
 
         <div className="ctrl">
           <label>BPM</label>
@@ -685,11 +787,26 @@ function App() {
             Count-in
           </label>
         </div>
-
-        {countingDown > 0 && (
-          <div className="counting-indicator">Count: {countingDown}</div>
-        )}
       </section>
+
+      {/* The count, over the middle of the page rather than off in the corner
+          of the controls: four beats is not long enough to go looking for it.
+          The chart underneath keeps working -- this is something to watch, not
+          something to dismiss -- and the bars stay visible through it, so the
+          eye can be on the first one before it sounds. Silent to a screen
+          reader: the clicks are the count, and this only draws it. */}
+      {countInBeat !== null && (
+        <div className="count-in" aria-hidden="true">
+          <div className="count-in-dots">
+            {Array.from({ length: BEATS_PER_MEASURE }, (_, i) => (
+              <span
+                key={i}
+                className={'count-in-dot' + (i < countInBeat ? ' lit' : '')}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {hasLoop && (
         <div className="loop-status">
@@ -790,7 +907,7 @@ function App() {
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>
         <div>Repeats: <code>%</code> (same as previous bar) / <code>%%</code> (same as bar two back) / <code>.</code> (repeat previous chord within the same bar, e.g. <code>|Bb13 . . E9|</code>)</div>
         <div>Drag across bars to set a loop range. During playback, drag also stops. Count-in skipped while loop is active.</div>
-        <div>Shortcuts: <code>←</code>/<code>→</code> transpose ± semitone / <code>Space</code> play</div>
+        <div>Click a bar to put the playhead on it. Shortcuts: <code>←</code>/<code>→</code> playhead one bar / <code>Space</code> play or pause / <code>e</code> sheet</div>
         <div>Written <strong>{noteLabel(tonicRoot, keyPreferFor(tonicRoot))}</strong> / Sounding <strong>{noteLabel(displayedKey, prefer)}</strong> ({currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
       </footer>
     </div>
