@@ -29,6 +29,11 @@ interface KeySnapshot {
 
 const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|';
 
+// Inputs that hold words. A key pressed in one of these is being typed, never
+// a shortcut. Every other input -- a number, a slider, a checkbox -- is set
+// rather than written in, and the shortcuts stay live over it.
+const TEXT_ENTRY_TYPES = new Set(['text', 'search', 'url', 'email', 'password', 'tel']);
+
 
 // A sheet handed over by yt-loop, read from the URL this page was opened with.
 // The link is the whole of the handover, and the page keeps the one it landed
@@ -46,6 +51,11 @@ function App() {
   // The note grid is a second reading of the same sheet, off by default: it is
   // for studying what the chords are made of, not for playing from.
   const [showNotes, setShowNotes] = useState(() => loadPrefs().showAnalysis);
+  // The sheet text is what the grid was built from, not what is read while the
+  // tune goes past, so it starts folded away. It opens under the grid, where
+  // the button that opens it is -- an editor that appeared a screen above the
+  // button would leave the eye hunting for what had changed.
+  const [showSheet, setShowSheet] = useState(false);
   const [noteMode, setNoteMode] = useState<NoteLabelMode>(() => loadPrefs().noteMode);
   const [noteSel, setNoteSel] = useState<number | null>(null);
   const [currentSong, setCurrentSong] = useState<Song>(() => {
@@ -388,10 +398,27 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); handleTranspose(-1); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); handleTranspose(1); }
-      else if (e.key === ' ') { e.preventDefault(); handlePlay(); }
+      const target = e.target;
+      // A field being typed into keeps every key it is sent.
+      if (target instanceof HTMLTextAreaElement) return;
+      if (target instanceof HTMLInputElement && TEXT_ENTRY_TYPES.has(target.type)) return;
+      const known = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+        || e.key === ' ' || e.key === 'e' || e.key === 'E';
+      if (!known) return;
+      // The arrows step BPM and the volume slider, so those two keep them.
+      // Every control here holds focus once it has been used, though, and the
+      // browser then claims the rest for it -- space opens a dropdown, presses
+      // a button again, ticks a checkbox. Space belongs to Play wherever it is
+      // pressed, so drop focus and take the key.
+      const stepped = target instanceof HTMLInputElement
+        && (target.type === 'number' || target.type === 'range');
+      if (stepped && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+      e.preventDefault();
+      if (target instanceof HTMLElement) target.blur();
+      if (e.key === 'ArrowLeft') handleTranspose(-1);
+      else if (e.key === 'ArrowRight') handleTranspose(1);
+      else if (e.key === ' ') handlePlay();
+      else setShowSheet(v => !v);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -580,24 +607,6 @@ function App() {
         )}
       </section>
 
-      <section className="chord-input-section">
-        <textarea
-          className={`chord-input${YT_SOURCE ? ' chord-input-ro' : ''}`}
-          value={currentSong.chordsRaw}
-          onChange={(e) => update({ chordsRaw: e.target.value })}
-          placeholder="|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|..."
-          spellCheck={false}
-          rows={3}
-          readOnly={!!YT_SOURCE}
-          title={YT_SOURCE ? 'This sheet is yt-loop’s — edit it there' : undefined}
-        />
-        {parsed.errors.length > 0 && (
-          <div className="errors">
-            {parsed.errors.map((e, i) => <div key={i}>⚠ {e}</div>)}
-          </div>
-        )}
-      </section>
-
       <section className="transport">
         <button
           className={'play-btn ' + (isPlaying ? 'playing' : '')}
@@ -704,6 +713,41 @@ function App() {
         barHref={barHref}
         onBarJump={handleBarJump}
       />
+
+      <section className="chord-input-section">
+        <button
+          type="button"
+          className="sheet-toggle"
+          aria-expanded={showSheet}
+          aria-controls="chord-input"
+          onClick={() => setShowSheet(v => !v)}
+          title={`${showSheet ? 'Hide' : 'Show'} the sheet (e)`}
+        >
+          {showSheet ? 'Hide sheet' : YT_SOURCE ? 'Show sheet' : 'Edit sheet'}
+          <kbd>e</kbd>
+        </button>
+        {showSheet && (
+          <textarea
+            id="chord-input"
+            className={`chord-input${YT_SOURCE ? ' chord-input-ro' : ''}`}
+            value={currentSong.chordsRaw}
+            onChange={(e) => update({ chordsRaw: e.target.value })}
+            placeholder="|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|..."
+            spellCheck={false}
+            rows={12}
+            readOnly={!!YT_SOURCE}
+            title={YT_SOURCE ? 'This sheet is yt-loop’s — edit it there' : undefined}
+          />
+        )}
+        {/* Errors stay out of the fold. A sheet that failed to parse is the one
+            time the text matters most, and hiding the reason with the editor
+            would leave a bar simply missing from the grid with nothing said. */}
+        {parsed.errors.length > 0 && (
+          <div className="errors">
+            {parsed.errors.map((e, i) => <div key={i}>⚠ {e}</div>)}
+          </div>
+        )}
+      </section>
 
       <section className="note-grid-controls">
         <button onClick={() => setShowNotes((v) => !v)}>

@@ -170,24 +170,24 @@ describe('chordToDegree', () => {
     expect(chordToDegree(c, 0, 0)).toBe('I');
   });
 
-  it('dominant seventh in C', () => {
+  it('leaves the quality to the chord name below it', () => {
     const c = parseChord('G7')!;
-    expect(chordToDegree(c, 0, 0)).toBe('V7');
+    expect(chordToDegree(c, 0, 0)).toBe('V');
   });
 
   it('minor uses lowercase', () => {
     const c = parseChord('Am7')!;
-    expect(chordToDegree(c, 0, 0)).toBe('vim7');
+    expect(chordToDegree(c, 0, 0)).toBe('vi');
   });
 
   it('maj7 stays uppercase', () => {
     const c = parseChord('Fmaj7')!;
-    expect(chordToDegree(c, 0, 0)).toBe('IVmaj7');
+    expect(chordToDegree(c, 0, 0)).toBe('IV');
   });
 
   it('flat degrees', () => {
     const c = parseChord('Db7')!;
-    expect(chordToDegree(c, 0, 0)).toBe('bII7');
+    expect(chordToDegree(c, 0, 0)).toBe('bII');
   });
 
   it('transposes correctly with key', () => {
@@ -205,9 +205,21 @@ describe('chordToDegree', () => {
     expect(chordToDegree(c, 0, 0)).toBe('I/III');
   });
 
+  it('keeps the bass while dropping the quality', () => {
+    const c = parseChord('C7/G')!;
+    expect(chordToDegree(c, 0, 0)).toBe('I/V');
+  });
+
+  it('reads the bass as a degree of the key, not of the chord', () => {
+    // Nashville writes the note after the slash as a scale degree: in Bb,
+    // C7/G is the II chord over the key's sixth.
+    const c = parseChord('C7/G')!;
+    expect(chordToDegree(c, 10, 0)).toBe('II/VI');
+  });
+
   it('dim/half-diminished', () => {
     const c = parseChord('Bm7b5')!;
-    expect(chordToDegree(c, 0, 0)).toBe('viim7b5');
+    expect(chordToDegree(c, 0, 0)).toBe('vii');
   });
 });
 
@@ -293,13 +305,21 @@ describe('parseSong', () => {
 });
 
 describe('chordDegreeRoot', () => {
-  it('gives the numeral without the quality', () => {
+  it('gives the numeral alone', () => {
     const bb7 = parseChord('Bb7')!;
     expect(chordDegreeRoot(bb7, 10, 0)).toBe('I');
-    expect(chordToDegree(bb7, 10, 0)).toBe('I7');
+    expect(chordToDegree(bb7, 10, 0)).toBe('I');
   });
 
-  it('lowercases a minor chord, as the joined form does', () => {
+  it('drops the bass the joined form keeps', () => {
+    // The strip is one column per slot: a slash would not fit, and the name
+    // above it already carries the bass note.
+    const c = parseChord('C/E')!;
+    expect(chordDegreeRoot(c, 0, 0)).toBe('I');
+    expect(chordToDegree(c, 0, 0)).toBe('I/III');
+  });
+
+  it('lowercases a minor chord, as the grid form does', () => {
     expect(chordDegreeRoot(parseChord('Cm7')!, 10, 0)).toBe('ii');
     expect(chordDegreeRoot(parseChord('G7#9')!, 10, 0)).toBe('VI');
   });

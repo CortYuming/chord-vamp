@@ -217,9 +217,8 @@ function isMinorish(quality: string): boolean {
   return false;
 }
 
-// The roman numeral on its own, without the quality glued to it. The note grid
-// prints the chord name and its degree on two lines, so it needs the halves
-// separately -- chordToDegree returns them already joined.
+// The roman numeral of the root alone: no quality, and no bass either. The
+// note grid's strip is one column per slot and has room for nothing more.
 export function chordDegreeRoot(
   chord: Chord,
   keyRoot: number,
@@ -231,19 +230,27 @@ export function chordDegreeRoot(
   return isMinorish(chord.quality) ? deg.toLowerCase() : deg;
 }
 
+// The numeral as the chord grid prints it, over the chord name: the degree,
+// and the bass degree when the chord names one.
+//
+// The quality is left off on purpose. It is already spelled out in the name on
+// the line below -- II13b9 over C13b9 says "13b9" twice, and the second saying
+// costs the bar the width a long name needs.
+//
+// The bass stays, because every way of numbering a chart keeps it. The
+// Nashville Number System writes it after a slash as a degree of the key --
+// 1/3, 4/1 -- which is the figure this computes; classical analysis moves it
+// into figured bass instead (I6). Neither throws the note away.
 export function chordToDegree(
   chord: Chord,
   keyRoot: number,
   transpose: number,
 ): string {
   if (chord.root === null) return chord.raw;
-  const shift = (n: number) => (((n + transpose - keyRoot) % 12) + 12) % 12;
-  const rootDeg = DEGREE_LABELS[shift(chord.root)];
-  const deg = isMinorish(chord.quality) ? rootDeg.toLowerCase() : rootDeg;
-  const bassStr = chord.bass !== null
-    ? '/' + DEGREE_LABELS[shift(chord.bass)]
-    : '';
-  return deg + chord.quality + bassStr;
+  const deg = chordDegreeRoot(chord, keyRoot, transpose);
+  if (chord.bass === null) return deg;
+  const shift = (((chord.bass + transpose - keyRoot) % 12) + 12) % 12;
+  return deg + '/' + DEGREE_LABELS[shift];
 }
 
 // The root of the first chord that has one. Stands in for the key when the
