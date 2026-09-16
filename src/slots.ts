@@ -1,12 +1,14 @@
 import type { Chord, Measure, Song as ParsedSong } from './chord';
-import { SLOTS_PER_MEASURE } from './chord';
+import { SLOTS_PER_BEAT, slotsOf } from './chord';
 
 // Reading a sheet into the slots a bar is played and drawn over. No sound and
 // no markup here: the player sequences what comes out of this, and the two
 // grids draw it, and neither should have to reach through the other to get it.
 
 export interface ExpandedMeasure {
-  // One entry per eighth-note slot, eight to the bar -- not one per beat. A
+  /** Beats in the bar, which is the meter it was written in. */
+  beats: number;
+  // One entry per eighth-note slot, two to the beat -- not one per beat. A
   // chord that lands off the beat keeps its own slot here so the grid can
   // print it; the bass then skips it. That is how a chart is actually read:
   // every chord is seen, fewer are sounded.
@@ -29,12 +31,11 @@ function resolveMeasureChords(measures: Measure[], idx: number): Chord[] {
   return [];
 }
 
-// A bar's chords laid out over its eight slots. Written evenly, so the four
-// chords of `|C D E F|` still take a beat each and sound exactly as they did
-// at the old four-slot resolution; what is new is that a fifth and a sixth
-// chord now have somewhere to go instead of being dropped.
-export function splitToSlots(chords: Chord[]): (Chord | null)[] {
-  const n = SLOTS_PER_MEASURE;
+// A bar's chords laid out over its slots, `n` of them -- eight in 4/4, six in
+// 3/4. Written evenly, so the four chords of `|C D E F|` still take a beat
+// each; a count that does not divide the bar leaves the longer slots at the
+// front, the way `|C D E|` has always been read as 3 + 3 + 2.
+export function splitToSlots(chords: Chord[], n: number): (Chord | null)[] {
   if (chords.length === 0) return Array(n).fill(null);
   if (chords.length >= n) return chords.slice(0, n);
   const slotsPerChord = n / chords.length;
@@ -87,7 +88,7 @@ export function slotRuns(slots: (Chord | null)[]): SlotRun[] {
 export function measureRuns(measures: Measure[]): (SlotRun[] | null)[] {
   return measures.map((m) => (
     m.kind === 'chords' && m.chords.length > 0
-      ? slotRuns(splitToSlots(m.chords))
+      ? slotRuns(splitToSlots(m.chords, slotsOf(m)))
       : null
   ));
 }
@@ -103,11 +104,55 @@ export function expandSong(
   const e = loopEnd < 0 ? n - 1 : Math.max(s, Math.min(loopEnd, n - 1));
   const out: ExpandedMeasure[] = [];
   for (let i = s; i <= e; i++) {
+    const measure = song.measures[i];
     const chords = resolveMeasureChords(song.measures, i);
     out.push({
-      slots: splitToSlots(chords),
+      beats: measure.beats,
+      slots: splitToSlots(chords, slotsOf(measure)),
       sourceIndex: i,
     });
   }
   return out;
+}
+
+/**
+ * Where each bar of a run begins, counted from the top of it -- in slots, and
+ * in beats for the walking line. Bars are not all the same length once a sheet
+ * changes meter, so nothing about where a bar sits can be divided out of a
+ * slot number any more: it is looked up here.
+ *
+ * Both arrays carry one entry per bar and a last entry for the end, so the
+ * length of the whole run is simply the last of them.
+ *
+ * Kept beside the rest of the sheet arithmetic rather than in the player: it
+ * is counting, and counting is the part worth testing.
+ */
+export interface Timeline {
+  slotAt: number[];
+  beatAt: number[];
+}
+
+export function buildTimeline(expanded: ExpandedMeasure[]): Timeline {
+  const slotAt = [0];
+  const beatAt = [0];
+  for (const m of expanded) {
+    slotAt.push(slotAt[slotAt.length - 1] + m.beats * SLOTS_PER_BEAT);
+    beatAt.push(beatAt[beatAt.length - 1] + m.beats);
+  }
+  return { slotAt, beatAt };
+}
+
+/** The length of the whole run, in slots. */
+export function totalSlots(timeline: Timeline): number {
+  return timeline.slotAt[timeline.slotAt.length - 1];
+}
+
+/**
+ * Which bar of the run a slot falls in. A walk rather than a division, and a
+ * short one: a chart is tens of bars, and this is asked once an eighth note.
+ */
+export function barAtSlot(timeline: Timeline, slot: number): number {
+  const at = timeline.slotAt;
+  for (let i = 1; i < at.length; i++) if (slot < at[i]) return i - 1;
+  return Math.max(0, at.length - 2);
 }

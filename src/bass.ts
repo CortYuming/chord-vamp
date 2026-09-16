@@ -1,5 +1,5 @@
 import type { Chord } from './chord';
-import { SLOTS_PER_MEASURE } from './chord';
+import { SLOTS_PER_BEAT } from './chord';
 import type { ExpandedMeasure } from './slots';
 import { chordTones, scaleFor } from './tones';
 import type { Rng } from './random';
@@ -16,9 +16,6 @@ import { createRng, hashString } from './random';
 //
 // No sound here, and no Tone.js: this is arithmetic over the sheet, which is
 // the part worth testing.
-
-export const BEATS_PER_MEASURE = 4;
-const SLOTS_PER_BEAT = SLOTS_PER_MEASURE / BEATS_PER_MEASURE;
 
 export interface PitchRange {
   min: number;
@@ -60,11 +57,16 @@ export function nearestPitch(pc: number, target: number, range: PitchRange): num
   return best ?? range.min;
 }
 
-/** The chord under each beat of the expanded sheet, in playing order. */
+/**
+ * The chord under each beat of the expanded sheet, in playing order. A bar
+ * gives up as many beats as its meter has, so a sheet that changes meter comes
+ * out as one line of beats with no gaps in it -- which is what the walk is
+ * written over and what the player counts along.
+ */
 export function beatChords(expanded: ExpandedMeasure[]): (Chord | null)[] {
   const out: (Chord | null)[] = [];
   for (const m of expanded) {
-    for (let b = 0; b < BEATS_PER_MEASURE; b++) {
+    for (let b = 0; b < m.beats; b++) {
       out.push(m.slots[b * SLOTS_PER_BEAT] ?? null);
     }
   }

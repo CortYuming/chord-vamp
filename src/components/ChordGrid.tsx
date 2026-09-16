@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
-import { chordToString, chordToDegree } from '../chord';
+import { chordToString, chordToDegree, slotsOf } from '../chord';
 import { measureRuns } from '../slots';
-import { spansOf, packRows, rowIndexOf } from '../layout';
+import { finestShares, packRows, rowIndexOf } from '../layout';
 
 interface Props {
   measures: Measure[];
@@ -69,6 +69,19 @@ function SimileMark({ variant }: { variant: 'single' | 'double' }) {
         >2</text>
       )}
     </svg>
+  );
+}
+
+// The sign at the head of a bar, drawn only where the meter was written -- the
+// way a stave carries it, once and then not again until it changes. Stacked
+// numerals rather than `3/4` on one line, because that is the shape a reader
+// is looking for, and the rule after it is the bar line a stave would have.
+function TimeSignature({ beats }: { beats: number }) {
+  return (
+    <span className="time-signature" aria-label={`${beats}/4 time`}>
+      <span>{beats}</span>
+      <span>4</span>
+    </span>
   );
 }
 
@@ -160,8 +173,12 @@ export function ChordGrid({
   // eighth note, and working the runs out in the body of the render would
   // redo every bar of the sheet each time.
   const barRuns = useMemo(() => measureRuns(measures), [measures]);
-  const spans = useMemo(() => spansOf(barRuns), [barRuns]);
-  const rows = useMemo(() => packRows(spans, width), [spans, width]);
+  const barSlots = useMemo(() => measures.map(slotsOf), [measures]);
+  const shares = useMemo(
+    () => finestShares(barRuns, barSlots),
+    [barRuns, barSlots],
+  );
+  const rows = useMemo(() => packRows(shares, width), [shares, width]);
 
   // Follow the playhead down the page. The line is what moves, not the bar:
   // scrolling on every eighth would shuffle the page under a reader four
@@ -243,7 +260,7 @@ export function ChordGrid({
             if (m.kind === 'repeat1') {
               content = (
                 <span className="chord-row" aria-label="repeat previous bar">
-                  {[0, 1, 2, 3].map((n) => (
+                  {Array.from({ length: m.beats }, (_, n) => (
                     <span key={n} className="chord chord-repeat">/</span>
                   ))}
                 </span>
@@ -291,6 +308,7 @@ export function ChordGrid({
                   href={barHref ? barHref(index) : null}
                   onJump={onBarJump}
                 />
+                {m.meterMark && <TimeSignature beats={m.beats} />}
                 {content}
               </div>
             );

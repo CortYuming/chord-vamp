@@ -155,3 +155,19 @@ describe('generateBassLine', () => {
     expect([1, 11, 7]).toContain(pitchClass(line[3]!));
   });
 });
+
+describe('beatChords across a change of meter', () => {
+  it('gives up as many beats as the bar has', () => {
+    const ex = expandSong(parseSong('|T34 C|T44 D|T24 E|'), 0, -1);
+    expect(beatChords(ex).map(c => c?.raw)).toEqual([
+      'C', 'C', 'C',            // three beats
+      'D', 'D', 'D', 'D',       // four
+      'E', 'E',                 // two
+    ]);
+  });
+
+  it('walks a line as long as the beats the sheet actually has', () => {
+    const ex = expandSong(parseSong('|T34 Cm7|F7|Bbmaj7|'), 0, -1);
+    expect(generateBassLine(ex)).toHaveLength(9);
+  });
+});
