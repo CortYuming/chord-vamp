@@ -1,12 +1,16 @@
 import type { Chord, Measure, Song as ParsedSong } from './chord';
-import { SLOTS_PER_BEAT, slotsOf } from './chord';
+import { beatsOf, slotsOf } from './chord';
 
 // Reading a sheet into the slots a bar is played and drawn over. No sound and
 // no markup here: the player sequences what comes out of this, and the two
 // grids draw it, and neither should have to reach through the other to get it.
 
 export interface ExpandedMeasure {
-  /** Beats in the bar, which is the meter it was written in. */
+  /**
+   * The quarter-note beats the bar hands the bass and the count -- the last
+   * one short where the meter does not fill it. Not the length of the bar:
+   * that is `slots.length`, and in 3/8 the two are a beat and a half apart.
+   */
   beats: number;
   // One entry per eighth-note slot, two to the beat -- not one per beat. A
   // chord that lands off the beat keeps its own slot here so the grid can
@@ -107,7 +111,7 @@ export function expandSong(
     const measure = song.measures[i];
     const chords = resolveMeasureChords(song.measures, i);
     out.push({
-      beats: measure.beats,
+      beats: beatsOf(measure),
       slots: splitToSlots(chords, slotsOf(measure)),
       sourceIndex: i,
     });
@@ -136,7 +140,7 @@ export function buildTimeline(expanded: ExpandedMeasure[]): Timeline {
   const slotAt = [0];
   const beatAt = [0];
   for (const m of expanded) {
-    slotAt.push(slotAt[slotAt.length - 1] + m.beats * SLOTS_PER_BEAT);
+    slotAt.push(slotAt[slotAt.length - 1] + m.slots.length);
     beatAt.push(beatAt[beatAt.length - 1] + m.beats);
   }
   return { slotAt, beatAt };

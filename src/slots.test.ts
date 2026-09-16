@@ -201,6 +201,15 @@ describe('expandSong across a change of meter', () => {
   });
 });
 
+describe('expandSong in meters counted in other notes', () => {
+  it('measures a bar by its meter and not by its count', () => {
+    const ex = expandSong(parseSong('|T22 C|T68 D|T38 E|T616 F|'), 0, -1);
+    expect(ex.map(m => m.slots.length)).toEqual([8, 6, 3, 3]);
+    // Quarter-note beats, the last one short where the meter does not fill it.
+    expect(ex.map(m => m.beats)).toEqual([4, 3, 2, 2]);
+  });
+});
+
 describe('buildTimeline', () => {
   const of = (sheet: string) => buildTimeline(expandSong(parseSong(sheet), 0, -1));
 
@@ -216,6 +225,16 @@ describe('buildTimeline', () => {
     expect(t.slotAt).toEqual([0, 8, 12, 18, 26]);
     expect(t.beatAt).toEqual([0, 4, 6, 9, 13]);
     expect(totalSlots(t)).toBe(26);
+  });
+
+  // A bar of 3/8 runs for three slots and gives two beats. The two are added
+  // up separately on purpose: adding the beats up in slots would put every bar
+  // after it half a beat late, and the playhead with it.
+  it('adds a part-beat bar up by its slots, not by its beats', () => {
+    const t = of('|T38 C|D|T44 E|');
+    expect(t.slotAt).toEqual([0, 3, 6, 14]);
+    expect(t.beatAt).toEqual([0, 2, 4, 8]);
+    expect(totalSlots(t)).toBe(14);
   });
 
   it('has a run of no length for an empty sheet', () => {

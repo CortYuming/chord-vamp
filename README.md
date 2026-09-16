@@ -12,9 +12,10 @@ https://cortyuming.github.io/chord-vamp/
 - Multiple chords per measure with space (`|F13 D7#9|`)
 - In-bar chord repeat with `.` — `|Bb13 . . E9|` expands to `|Bb13 Bb13 Bb13 E9|`
 - Single- and two-bar repeat marks `%` / `%%`
+- Time signatures written at the head of a bar: `|T34 Cm7|`, in force until another one is written
 - 4-measures-per-row display with iReal Pro–style borders
 - Bass root note played on quarter notes via Web Audio
-- Count-in of one bar (four stick clicks) before playback; skipped on loop restart
+- Count-in of one bar before playback — as many clicks as the bar it counts into has beats; skipped on loop restart
 - Drag across measures to set a loop range
 - Transpose by semitone (`♭` / `♯` buttons or `←` / `→`), or pick a target Key directly
 - `♯` / `♭` accidental preference toggle
@@ -27,7 +28,10 @@ https://cortyuming.github.io/chord-vamp/
 
 ```
 song      := "|" measure ("|" measure)* "|"
-measure   := chords | "%" | "%%" | ""
+measure   := [meter " "] (chords | "%" | "%%" | "")
+meter     := "T" count note        (e.g. T34, T22, T68, T128, T216)
+count     := 1..99
+note      := 2 | 4 | 8 | 16
 chords    := chord (" " (chord | "."))*
 chord     := root [quality] ["/" bass]
 root      := [A-G] ["#" | "b"]
@@ -36,9 +40,29 @@ bass      := root
 ```
 
 - Empty measures render as a dot and rest during playback.
-- Multiple chords in a measure split the four beats: 2 chords → 2+2, 3 chords → 2+1+1, 4 chords → 1+1+1+1.
+- A bar is read in eighth-note slots, two to the beat — eight of them in 4/4,
+  six in 3/4, three in 3/8. Chords are spread evenly over them: 2 chords → 4+4,
+  3 chords → 3+3+2, 8 chords → one each. More chords than slots is an error
+  rather than a bar with chords quietly dropped from it.
 - `.` repeats the previous chord within the same measure only; it does not carry across bar lines.
 - `N.C.` is recognized as no-chord (silent).
+
+### Time signatures
+
+`T34` is 3/4, `T22` is cut time, `T128` is 12/8, `T216` is 2/16: the count, then
+the note it is counted in, run together. The note comes off the end, so `T332`
+is 33/2 rather than a thirty-second. Written at the head of a bar and standing
+from there until another one is written, the way a stave carries the sign — and
+drawn only on the bar that declared it.
+
+The same notation [yt-loop](https://cortyuming.github.io/yt-loop/) writes, so a
+sheet transcribed there arrives here already signed.
+
+The bass walks and the count-in strikes in quarter notes whatever the meter, the
+last beat of a bar being short where the meter does not fill it (3/8 is a beat
+and a half). A meter that does not land on the eighth-note slots is refused
+rather than rounded onto them, which leaves out only an odd count of sixteenths:
+3/16 and 5/16 cannot be written, 6/16 and 12/16 can.
 
 ## Sheets from yt-loop
 
@@ -107,4 +131,3 @@ Push to `main` → GitHub Actions builds and deploys to GitHub Pages automatical
 - Section markers (A, B, 1st/2nd endings)
 - Section repeat marks `|: :|`
 - Metronome overlay track
-- 3/4 and 6/8 time signatures
