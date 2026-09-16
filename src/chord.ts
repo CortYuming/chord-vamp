@@ -93,40 +93,81 @@ export function keyPreferFor(semi: number): Accidental {
 // parseable.
 export const SLOTS_PER_BEAT = 2;
 
+/**
+ * A time signature, held as the two numbers a reader sees rather than as a
+ * length: 3/8 and 3/16 are not one bar played at two speeds, and only the pair
+ * says which is meant. The same shape yt-loop writes, so a sheet handed over
+ * by the link is read here without being translated.
+ */
+export interface Meter {
+  num: number;
+  den: number;
+}
+
+/** How many eighth-note slots a meter runs for. */
+export function slotsOfMeter(meter: Meter): number {
+  return (meter.num * 4 * SLOTS_PER_BEAT) / meter.den;
+}
+
+// The notes a beat can be counted in. A list rather than a pattern spelled out
+// in the regexp, since the token is read by taking one of these off the end.
+export const NOTE_VALUES = [2, 4, 8, 16];
+
+// The largest count a meter can be written with. Two digits, which is the
+// limit yt-loop writes under, so whatever can be written there is read here.
+export const MAX_NUM = 99;
+
 // The meter a sheet is in until it says otherwise, and how long a bar of it
 // runs. Both are the 4/4 case of the general rule and not a fixed property of
 // a bar any more: `slotsOf` is what asks a particular bar how long it is.
-export const DEFAULT_BEATS = 4;
-export const SLOTS_PER_MEASURE = DEFAULT_BEATS * SLOTS_PER_BEAT;
-
-// The most beats a bar can be written with. The token carries one digit for
-// the count -- T54 is 5/4 -- so ten is where the notation runs out rather
-// than where the music does.
-export const MAX_BEATS = 9;
+export const DEFAULT_METER: Meter = { num: 4, den: 4 };
+export const SLOTS_PER_MEASURE = slotsOfMeter(DEFAULT_METER);
 
 /**
  * A time signature as this app writes it: `T34` at the head of a bar, in force
  * from there until another one is written, which is how a stave carries it.
- * Only quarter-note meters are read; `T68` is refused rather than guessed at,
- * since a compound meter counts in dotted beats and the bass and the kit would
- * both have to be told about it.
+ * `T22` is cut time, `T128` is 12/8, `T216` is 2/16 -- the count, then the note
+ * it is counted in, run together with nothing between them. That is never
+ * ambiguous: no two note values split one token two ways, since 28 is not a
+ * note and neither is 6.
+ *
+ * The count starts at one, a bar of no beats being no bar: `T04` is read as a
+ * chord by that name, the way anything else at the head of a bar is.
  */
 const METER_TOKEN = /^T\d/;
-const METER = /^T(\d)(\d)$/;
+const METER = new RegExp(`^T([1-9]\\d?)(${NOTE_VALUES.join('|')})$`);
 
 export function isMeterToken(token: string): boolean {
   return METER_TOKEN.test(token);
 }
 
-/** The beats a meter token names, or null for one this app cannot read. */
-export function readMeter(token: string): number | null {
+/** The meter a token names, or null for a token that does not name one. */
+export function readMeter(token: string): Meter | null {
   const m = METER.exec(token);
   if (!m) return null;
-  const beats = Number(m[1]);
-  const unit = Number(m[2]);
-  if (unit !== 4) return null;
-  if (beats < 1 || beats > MAX_BEATS) return null;
-  return beats;
+  // The pattern is what rules on both parts: one or two digits with no
+  // leading zero is 1 to MAX_NUM, and the note has already been matched
+  // against the list. Nothing left to check here.
+  return { num: Number(m[1]), den: Number(m[2]) };
+}
+
+/**
+ * Whether a meter lands on the eighth-note grid the app is read and played
+ * over. Only an odd count of sixteenths does not -- 3/16 is a slot and a half,
+ * and half a slot is neither drawn nor struck. Every half, quarter and eighth
+ * meter fits, and so do 6/16 and 12/16.
+ */
+export function meterFitsSlots(meter: Meter): boolean {
+  return Number.isInteger(slotsOfMeter(meter));
+}
+
+/** A meter as a reader says it: 3/4. */
+export function meterLabel(meter: Meter): string {
+  return `${meter.num}/${meter.den}`;
+}
+
+export function sameMeter(a: Meter, b: Meter): boolean {
+  return a.num === b.num && a.den === b.den;
 }
 
 export interface Chord {
@@ -147,8 +188,8 @@ export interface Chord {
  * does not have the bars before the loop to walk back through.
  */
 interface MeasureCommon {
-  /** Beats in the bar. The unit is always a quarter note. */
-  beats: number;
+  /** The meter the bar is read in. */
+  meter: Meter;
   /** Whether this bar is where the meter was written, and so draws the sign. */
   meterMark: boolean;
 }
@@ -159,8 +200,22 @@ export type Measure =
   | (MeasureCommon & { kind: 'repeat2' });
 
 /** How many eighth-note slots a bar runs for. */
-export function slotsOf(measure: { beats: number }): number {
-  return measure.beats * SLOTS_PER_BEAT;
+export function slotsOf(measure: { meter: Meter }): number {
+  return slotsOfMeter(measure.meter);
+}
+
+/**
+ * The quarter-note beats a bar hands the bass and the count-in. The last one
+ * is short where the meter does not fill it: 3/8 is a beat and a half, and the
+ * half is still a place the line plays from and the count strikes. Rounding it
+ * away would leave a bar of 1/8 with no beat at all.
+ */
+export function beatsOfMeter(meter: Meter): number {
+  return Math.ceil(slotsOfMeter(meter) / SLOTS_PER_BEAT);
+}
+
+export function beatsOf(measure: { meter: Meter }): number {
+  return beatsOfMeter(measure.meter);
 }
 
 export interface Song {
@@ -346,7 +401,7 @@ export function parseSong(text: string): Song {
   // The meter in force. It starts at 4/4 and changes where a bar says so,
   // which is how a stave reads: the sign appears once and stands until the
   // next one.
-  let beats = DEFAULT_BEATS;
+  let meter = DEFAULT_METER;
 
   cells.forEach((cell, i) => {
     const t = cell.trim();
@@ -371,11 +426,23 @@ export function parseSong(text: string): Song {
       if (read === null) {
         errors.push(
           `measure ${i + 1}: "${tk}" is not a time signature this app reads -- ` +
-          `write 3/4 as T34, and only quarter-note meters up to ${MAX_BEATS} beats`,
+          `write 3/4 as T34 and 6/8 as T68, counting 1 to ${MAX_NUM} in ` +
+          'halves, quarters, eighths or sixteenths',
         );
         return;
       }
-      beats = read;
+      // A meter off the eighth-note grid is refused rather than rounded onto
+      // it: half a slot is neither a place a chord can be drawn nor one the
+      // player can strike, and rounding would sound a bar nobody wrote.
+      if (!meterFitsSlots(read)) {
+        errors.push(
+          `measure ${i + 1}: ${meterLabel(read)} does not divide into the ` +
+          'eighth-note slots this app reads and plays over -- an odd count ' +
+          'of sixteenths is the one shape that does not fit',
+        );
+        return;
+      }
+      meter = read;
       meterMark = true;
     });
 
@@ -387,25 +454,25 @@ export function parseSong(text: string): Song {
     // one across a change of meter either.
     const checkRepeat = (back: number): void => {
       const source = measures[measures.length - back];
-      if (!source || source.beats === beats) return;
+      if (!source || sameMeter(source.meter, meter)) return;
       errors.push(
-        `measure ${i + 1}: this bar is ${beats}/4 and the bar it repeats is ` +
-        `${source.beats}/4 -- write the chords out instead`,
+        `measure ${i + 1}: this bar is ${meterLabel(meter)} and the bar it ` +
+        `repeats is ${meterLabel(source.meter)} -- write the chords out instead`,
       );
     };
 
     if (rest === '%') {
       checkRepeat(1);
-      measures.push({ kind: 'repeat1', beats, meterMark });
+      measures.push({ kind: 'repeat1', meter, meterMark });
       return;
     }
     if (rest === '%%') {
       checkRepeat(2);
-      measures.push({ kind: 'repeat2', beats, meterMark });
+      measures.push({ kind: 'repeat2', meter, meterMark });
       return;
     }
     if (rest === '') {
-      measures.push({ kind: 'chords', chords: [], beats, meterMark });
+      measures.push({ kind: 'chords', chords: [], meter, meterMark });
       return;
     }
 
@@ -427,14 +494,14 @@ export function parseSong(text: string): Song {
         chords.push(c);
       }
     }
-    const slots = beats * SLOTS_PER_BEAT;
+    const slots = slotsOfMeter(meter);
     if (chords.length > slots) {
       errors.push(
-        `measure ${i + 1}: ${chords.length} chords in one bar of ${beats}/4, ` +
-        `only ${slots} fit -- the rest will not sound`,
+        `measure ${i + 1}: ${chords.length} chords in one bar of ` +
+        `${meterLabel(meter)}, only ${slots} fit -- the rest will not sound`,
       );
     }
-    measures.push({ kind: 'chords', chords, beats, meterMark });
+    measures.push({ kind: 'chords', chords, meter, meterMark });
   });
 
   return { measures, errors };

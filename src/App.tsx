@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import {
-  DEFAULT_BEATS, KEY_CHOICES, keyChoiceFor, keyPreferFor, noteLabel, parseSong,
-  resolveKeyRoot, transposeSong,
+  beatsOf, beatsOfMeter, DEFAULT_METER, KEY_CHOICES, keyChoiceFor,
+  keyPreferFor, noteLabel, parseSong, resolveKeyRoot, transposeSong,
 } from './chord';
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
@@ -116,7 +116,7 @@ function App() {
   const [countInBeat, setCountInBeat] = useState<number | null>(null);
   // How many beats the count runs for: the meter of the bar it counts into,
   // so a tune in 3/4 gets three and not four.
-  const [countInBeats, setCountInBeats] = useState(DEFAULT_BEATS);
+  const [countInBeats, setCountInBeats] = useState(() => beatsOfMeter(DEFAULT_METER));
   const [loopStart, setLoopStart] = useState<number | null>(YT_PREFS?.loopStart ?? null);
   const [loopEnd, setLoopEnd] = useState<number | null>(YT_PREFS?.loopEnd ?? null);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
@@ -308,7 +308,8 @@ function App() {
     const from = currentMeasure >= lo && currentMeasure <= hi ? currentMeasure : lo;
     setCurrentMeasure(from);
     setPlayState('playing');
-    setCountInBeats(parsed.measures[from]?.beats ?? DEFAULT_BEATS);
+    const into = parsed.measures[from];
+    setCountInBeats(into ? beatsOf(into) : beatsOfMeter(DEFAULT_METER));
     setCountInBeat(useCountIn ? 0 : null);
     await player.start({
       song: parsed,

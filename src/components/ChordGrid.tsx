@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Measure, Chord, Accidental } from '../chord';
-import { chordToString, chordToDegree, slotsOf } from '../chord';
+import type { Measure, Chord, Accidental, Meter } from '../chord';
+import { chordToString, chordToDegree, meterLabel, slotsOf } from '../chord';
 import { measureRuns } from '../slots';
 import { finestShares, packRows, rowIndexOf } from '../layout';
 
@@ -76,11 +76,11 @@ function SimileMark({ variant }: { variant: 'single' | 'double' }) {
 // way a stave carries it, once and then not again until it changes. Stacked
 // numerals rather than `3/4` on one line, because that is the shape a reader
 // is looking for, and the rule after it is the bar line a stave would have.
-function TimeSignature({ beats }: { beats: number }) {
+function TimeSignature({ meter }: { meter: Meter }) {
   return (
-    <span className="time-signature" aria-label={`${beats}/4 time`}>
-      <span>{beats}</span>
-      <span>4</span>
+    <span className="time-signature" aria-label={`${meterLabel(meter)} time`}>
+      <span>{meter.num}</span>
+      <span>{meter.den}</span>
     </span>
   );
 }
@@ -260,7 +260,9 @@ export function ChordGrid({
             if (m.kind === 'repeat1') {
               content = (
                 <span className="chord-row" aria-label="repeat previous bar">
-                  {Array.from({ length: m.beats }, (_, n) => (
+                  {/* One stroke per beat of the meter, which is the count it
+                      is written with: three in 3/4, six in 6/8. */}
+                  {Array.from({ length: m.meter.num }, (_, n) => (
                     <span key={n} className="chord chord-repeat">/</span>
                   ))}
                 </span>
@@ -308,7 +310,7 @@ export function ChordGrid({
                   href={barHref ? barHref(index) : null}
                   onJump={onBarJump}
                 />
-                {m.meterMark && <TimeSignature beats={m.beats} />}
+                {m.meterMark && <TimeSignature meter={m.meter} />}
                 {content}
               </div>
             );

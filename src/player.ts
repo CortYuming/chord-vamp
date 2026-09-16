@@ -135,7 +135,7 @@ export class Player {
 
     const from = this.offsetOf(cfg.startMeasure);
     this.slotIndex = this.timeline.slotAt[from];
-    this.countInSlots = this.expanded[from].beats * SLOTS_PER_BEAT;
+    this.countInSlots = this.expanded[from].slots.length;
     this.countInSlotsLeft = cfg.countIn ? this.countInSlots : 0;
     this.kit = this.buildKit();
     this.state = 'playing';
@@ -346,7 +346,7 @@ export class Player {
     if (!measure) return null;
     const start = this.timeline.slotAt[mIdx];
     return measure.sourceIndex
-      + (at - start) / (measure.beats * SLOTS_PER_BEAT);
+      + (at - start) / measure.slots.length;
   }
 
   private playDrum(hit: DrumHit, time: number) {

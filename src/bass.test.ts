@@ -166,6 +166,15 @@ describe('beatChords across a change of meter', () => {
     ]);
   });
 
+  // 3/8 runs for a beat and a half. The line plays slot 0 and slot 2, the
+  // second landing half a beat before the bar line -- which is where the chord
+  // written there falls. A beat is dropped only by a bar with no room for one.
+  it('plays the part-beat of a short bar as a beat of its own', () => {
+    const ex = expandSong(parseSong('|T38 C D|T44 E|'), 0, -1);
+    expect(beatChords(ex).map(c => c?.raw))
+      .toEqual(['C', 'D', 'E', 'E', 'E', 'E']);
+  });
+
   it('walks a line as long as the beats the sheet actually has', () => {
     const ex = expandSong(parseSong('|T34 Cm7|F7|Bbmaj7|'), 0, -1);
     expect(generateBassLine(ex)).toHaveLength(9);

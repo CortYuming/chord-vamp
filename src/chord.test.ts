@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_BEATS,
+  beatsOfMeter,
+  DEFAULT_METER,
   KEY_CHOICES,
   keyChoiceByLabel,
   keyChoiceFor,
@@ -13,8 +14,11 @@ import {
   noteLabel,
   parseChord,
   parseSong,
+  meterFitsSlots,
+  meterLabel,
   readMeter,
   resolveKeyRoot,
+  sameMeter,
   slotsOf,
   transposeChord,
   transposeSong,
@@ -233,7 +237,7 @@ describe('parseSong', () => {
     expect(s.measures[0]).toEqual({
       kind: 'chords',
       chords: [{ raw: 'F13', root: 5, quality: '13', bass: null }],
-      beats: DEFAULT_BEATS,
+      meter: DEFAULT_METER,
       meterMark: false,
     });
     expect(s.errors).toEqual([]);
@@ -478,40 +482,111 @@ describe('KEY_CHOICES', () => {
 
 describe('readMeter', () => {
   it('reads the quarter-note meters', () => {
-    expect(readMeter('T24')).toBe(2);
-    expect(readMeter('T34')).toBe(3);
-    expect(readMeter('T44')).toBe(4);
-    expect(readMeter('T54')).toBe(5);
+    expect(readMeter('T24')).toEqual({ num: 2, den: 4 });
+    expect(readMeter('T34')).toEqual({ num: 3, den: 4 });
+    expect(readMeter('T44')).toEqual({ num: 4, den: 4 });
+    expect(readMeter('T54')).toEqual({ num: 5, den: 4 });
   });
 
-  it('refuses a meter counted in anything but quarters', () => {
-    // 6/8 counts in dotted beats, which the bass and the kit would both have
-    // to be told about. Refused rather than read as six quarter notes.
-    expect(readMeter('T68')).toBeNull();
-    expect(readMeter('T38')).toBeNull();
+  // The count and the note run together, so the note is what comes off the
+  // end. No two note values split one token two ways -- 28 is not a note, and
+  // neither is 6 -- so there is nothing to guess at.
+  it('reads the other note values, count and all', () => {
+    expect(readMeter('T22')).toEqual({ num: 2, den: 2 });
+    expect(readMeter('T38')).toEqual({ num: 3, den: 8 });
+    expect(readMeter('T68')).toEqual({ num: 6, den: 8 });
+    expect(readMeter('T128')).toEqual({ num: 12, den: 8 });
+    expect(readMeter('T216')).toEqual({ num: 2, den: 16 });
+    expect(readMeter('T1216')).toEqual({ num: 12, den: 16 });
   });
 
-  it('refuses a bar of no beats, or more than the token can hold', () => {
+  it('reads the two-digit counts yt-loop can write', () => {
+    expect(readMeter('T994')).toEqual({ num: 99, den: 4 });
+  });
+
+  it('refuses a note value nobody counts in', () => {
+    expect(readMeter('T36')).toBeNull();
+    expect(readMeter('T31')).toBeNull();
+  });
+
+  // The note comes off the end, so a token that looks like a thirty-second is
+  // read as a two -- `T332` is 33/2. Worth pinning down rather than leaving to
+  // be discovered: it is the one place the notation surprises a reader, and
+  // yt-loop reads it the same way.
+  it('takes the note off the end and leaves the rest as the count', () => {
+    expect(readMeter('T332')).toEqual({ num: 33, den: 2 });
+    expect(readMeter('T164')).toEqual({ num: 16, den: 4 });
+  });
+
+  it('refuses a bar of no beats', () => {
+    // A signature rules on, so a bar of nought beats would be followed by a
+    // sheet of them. Read as a chord by that name instead.
     expect(readMeter('T04')).toBeNull();
-    expect(readMeter('T444')).toBeNull();
   });
 
   it('is not a chord', () => {
     expect(parseChord('T44')).toBeNull();
+    expect(parseChord('T128')).toBeNull();
+  });
+});
+
+// The app reads and plays a bar over eighth-note slots. A meter that does not
+// land on them is refused rather than rounded onto them -- and only an odd
+// count of sixteenths comes out that way.
+describe('meterFitsSlots', () => {
+  it('takes every half, quarter and eighth meter', () => {
+    for (const t of ['T22', 'T32', 'T34', 'T54', 'T38', 'T68', 'T78', 'T128']) {
+      expect(meterFitsSlots(readMeter(t)!)).toBe(true);
+    }
+  });
+
+  it('takes an even count of sixteenths and refuses an odd one', () => {
+    expect(meterFitsSlots(readMeter('T616')!)).toBe(true);
+    expect(meterFitsSlots(readMeter('T1216')!)).toBe(true);
+    expect(meterFitsSlots(readMeter('T316')!)).toBe(false);
+    expect(meterFitsSlots(readMeter('T516')!)).toBe(false);
+  });
+});
+
+describe('sameMeter', () => {
+  it('tells apart two meters of the same length', () => {
+    // 2/4 and 4/8 run for the same time and are not the same bar.
+    expect(sameMeter({ num: 2, den: 4 }, { num: 4, den: 8 })).toBe(false);
+    expect(sameMeter({ num: 2, den: 4 }, { num: 2, den: 4 })).toBe(true);
+  });
+});
+
+// The beats the bass plays from and the count strikes: quarter notes, with the
+// last one short where the meter does not fill it.
+describe('beatsOf', () => {
+  const beats = (t: string) => beatsOfMeter(readMeter(t)!);
+
+  it('counts a quarter-note meter as it is written', () => {
+    expect(beats('T34')).toBe(3);
+    expect(beats('T44')).toBe(4);
+  });
+
+  it('counts the other meters in quarters, rounding a part-beat up', () => {
+    expect(beats('T22')).toBe(4);
+    expect(beats('T68')).toBe(3);
+    // A beat and a half. The half is still a place the bass plays from.
+    expect(beats('T38')).toBe(2);
+    expect(beats('T18')).toBe(1);
   });
 });
 
 describe('parseSong with time signatures', () => {
-  const metersOf = (sheet: string) => parseSong(sheet).measures.map(m => m.beats);
+  const metersOf = (sheet: string) =>
+    parseSong(sheet).measures.map(m => meterLabel(m.meter));
   const marksOf = (sheet: string) => parseSong(sheet).measures.map(m => m.meterMark);
 
   it('reads a sheet with no sign at all as 4/4', () => {
-    expect(metersOf('|C|D|')).toEqual([DEFAULT_BEATS, DEFAULT_BEATS]);
+    expect(metersOf('|C|D|')).toEqual(['4/4', '4/4']);
     expect(marksOf('|C|D|')).toEqual([false, false]);
   });
 
   it('holds the meter from where it is written until it changes', () => {
-    expect(metersOf('|T34 C|D|T44 E|F|')).toEqual([3, 3, 4, 4]);
+    expect(metersOf('|T34 C|D|T44 E|F|')).toEqual(['3/4', '3/4', '4/4', '4/4']);
   });
 
   it('marks only the bar that declared it, which is the bar that draws it', () => {
@@ -523,9 +598,24 @@ describe('parseSong with time signatures', () => {
     expect(measures.map(slotsOf)).toEqual([4, 6, 8]);
   });
 
+  it('measures the other note values over the same slots', () => {
+    // Two slots to the quarter, whatever the beat is written as: 2/2 is a bar
+    // of four quarters, 3/8 a bar of three eighths.
+    const { measures } = parseSong('|T22 C|T68 D|T38 E|T616 F|');
+    expect(measures.map(slotsOf)).toEqual([8, 6, 3, 3]);
+  });
+
+  it('refuses a meter that does not land on the slots', () => {
+    const s = parseSong('|T316 C|');
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]).toContain('does not divide');
+    // The bar is still read, in the meter that was in force.
+    expect(metersOf('|T316 C|')).toEqual(['4/4']);
+  });
+
   it('carries the meter into empty bars and repeat marks', () => {
-    expect(metersOf('|T34 C|%|')).toEqual([3, 3]);
-    expect(metersOf('|T34 C||')).toEqual([3, 3]);
+    expect(metersOf('|T34 C|%|')).toEqual(['3/4', '3/4']);
+    expect(metersOf('|T34 C||')).toEqual(['3/4', '3/4']);
   });
 
   it('wants the sign at the head of the bar, where it is engraved', () => {
@@ -534,14 +624,14 @@ describe('parseSong with time signatures', () => {
       'measure 1: a time signature belongs at the head of the bar',
     ]);
     // The bar is still read; the sign is what was refused.
-    expect(s.measures[0].beats).toBe(DEFAULT_BEATS);
+    expect(meterLabel(s.measures[0].meter)).toBe('4/4');
   });
 
   it('says so when the sign is one it cannot read', () => {
-    const s = parseSong('|T68 C|');
+    const s = parseSong('|T36 C|');
     expect(s.errors).toHaveLength(1);
     expect(s.errors[0]).toContain('not a time signature');
-    expect(s.measures[0].beats).toBe(DEFAULT_BEATS);
+    expect(meterLabel(s.measures[0].meter)).toBe('4/4');
   });
 
   // A repeat sign copies the bar before it, and four chords do not fit a bar
@@ -549,6 +639,14 @@ describe('parseSong with time signatures', () => {
   // either, so this is the sheet being wrong rather than something to rescale.
   it('refuses a repeat mark that reaches across a change of meter', () => {
     const s = parseSong('|C D E F|T34 %|');
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]).toContain('repeats');
+  });
+
+  it('refuses a repeat mark across two meters of the same length', () => {
+    // 2/4 and 4/8 run for the same time. A stave still does not write a repeat
+    // sign across the change, and the bar underneath is not the same bar.
+    const s = parseSong('|T24 C D|T48 %|');
     expect(s.errors).toHaveLength(1);
     expect(s.errors[0]).toContain('repeats');
   });
@@ -569,5 +667,17 @@ describe('parseSong with time signatures', () => {
   it('leaves the sign alone when the sheet is transposed', () => {
     expect(transposeSong('|T34 Cm7|T24 F7 Bb/D|', 2, 'sharp'))
       .toBe('|T34 Dm7|T24 G7 C/E|');
+    expect(transposeSong('|T128 Cm7|T216 F7|', 2, 'sharp'))
+      .toBe('|T128 Dm7|T216 G7|');
+  });
+
+  // What yt-loop writes out is what is read here: the bars it found short are
+  // signed, and the rest carry on in the meter in force.
+  it('reads a sheet yt-loop wrote with mixed meters', () => {
+    const s = parseSong('|C|T24 Dm7|T44 G7|T38 C|Am7|');
+    expect(s.errors).toEqual([]);
+    expect(s.measures.map(slotsOf)).toEqual([8, 4, 8, 3, 3]);
+    expect(s.measures.map(m => m.meterMark))
+      .toEqual([false, true, true, true, false]);
   });
 });
