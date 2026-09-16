@@ -46,8 +46,11 @@ const pc = (n: number) => (((n % 12) + 12) % 12);
 const MIN_COL_PX = 27;
 const BAR_MIN_PX = 108;
 
-function barWidthPx(finestSpan: number): number {
-  return Math.max(BAR_MIN_PX, (MIN_COL_PX * SLOTS_PER_MEASURE) / finestSpan);
+// What one slot has to be worth for the finest column on the strip to stay
+// readable. Held in slots rather than in bars, because a bar of 2/4 is half
+// the bar of 4/4 beside it and the strip is what shows that.
+function slotWidthPx(finestSpan: number): number {
+  return Math.max(MIN_COL_PX / finestSpan, BAR_MIN_PX / SLOTS_PER_MEASURE);
 }
 
 function buildCols(measures: Measure[]): Col[] {
@@ -71,10 +74,20 @@ export function NoteGrid({
   currentMeasure, playing, position, selected, onSelect,
 }: Props) {
   const cols = useMemo(() => buildCols(measures), [measures]);
-  const bars = useMemo(
-    () => Array.from(new Set(cols.map((c) => c.bar))),
-    [cols],
-  );
+  // The bars of the strip and how long each one runs, added up from the columns
+  // it was drawn in. The strip is built from the same runs the player
+  // sequences, so a bar's length here is its own meter rather than a second
+  // reading of the sheet. Columns arrive in bar order, so one pass groups them.
+  const barList = useMemo(() => {
+    const out: { bar: number; slots: number }[] = [];
+    for (const c of cols) {
+      const last = out[out.length - 1];
+      if (last && last.bar === c.bar) last.slots += c.span;
+      else out.push({ bar: c.bar, slots: c.span });
+    }
+    return out;
+  }, [cols]);
+  const bars = useMemo(() => barList.map((b) => b.bar), [barList]);
   const flat = prefer === 'flat';
 
   // Follow the playhead. The strip is wider than the screen by design, so a
@@ -160,9 +173,12 @@ export function NoteGrid({
 
   if (cols.length === 0) return null;
 
-  const totalSlots = bars.length * SLOTS_PER_MEASURE;
+  const totalSlots = cols.reduce((n, c) => n + c.span, 0);
   // The narrowest column the strip has to draw, which is what sets its width.
-  const finest = cols.reduce((n, c) => Math.min(n, c.span), SLOTS_PER_MEASURE);
+  // Seeded from the first column rather than from a bar of 4/4: a sheet whose
+  // bars all run longer than that would have been measured against a bar it
+  // does not contain.
+  const finest = cols.reduce((n, c) => Math.min(n, c.span), cols[0].span);
 
   // A note's reading. Names and solfege count from the key; degrees count from
   // the chord, because a degree only means anything against its own chord.
@@ -182,10 +198,10 @@ export function NoteGrid({
       <div className="note-grid-wrap" ref={wrapRef}>
       <div
         className="note-grid"
-        style={{ ...style, minWidth: `${bars.length * barWidthPx(finest)}px` }}
+        style={{ ...style, minWidth: `${totalSlots * slotWidthPx(finest)}px` }}
       >
         {/* bar numbers */}
-        {bars.map((b, i) => (
+        {barList.map(({ bar: b, slots }, i) => (
           <div
             key={`n${b}`}
             ref={(el) => {
@@ -194,7 +210,7 @@ export function NoteGrid({
             }}
             className={'ng-bar-no' + (i % 4 === 0 ? ' ng-rule' : '')
               + (b === currentMeasure ? ' ng-now' : '')}
-            style={{ gridColumn: `span ${SLOTS_PER_MEASURE}` }}
+            style={{ gridColumn: `span ${slots}` }}
           >
             {b + 1}
           </div>

@@ -1,4 +1,3 @@
-import { SLOTS_PER_MEASURE } from './chord';
 import type { SlotRun } from './slots';
 
 // How the chord grid decides how many bars go on a line. Pulled out of the
@@ -30,23 +29,31 @@ export interface Row {
   perRow: number;
 }
 
-// The fewest slots any one chord in a bar is held for -- the chord the layout
-// has to fit, everything else being wider by definition. A bar with nothing to
-// draw holds no chord name and so constrains nothing.
-export function spansOf(barRuns: (SlotRun[] | null)[]): number[] {
-  return barRuns.map((runs) => {
-    if (!runs) return SLOTS_PER_MEASURE;
-    let finest = SLOTS_PER_MEASURE;
+// How much of its bar the shortest chord in it gets -- the chord the layout has
+// to fit, everything else being wider by definition. A share of the bar rather
+// than a count of slots, because bars are no longer all the same length: one
+// chord filling a bar of 2/4 has the whole of it to be written in, the same as
+// one filling a bar of 4/4, and counting slots would call the first of them
+// half as wide. A bar with nothing to draw holds no chord name and so
+// constrains nothing.
+export function finestShares(
+  barRuns: (SlotRun[] | null)[],
+  slots: number[],
+): number[] {
+  return barRuns.map((runs, i) => {
+    const n = slots[i];
+    if (!runs || n <= 0) return 1;
+    let finest = n;
     for (const r of runs) if (r.span < finest) finest = r.span;
-    return finest;
+    return finest / n;
   });
 }
 
-// Whether a chord held for `finest` slots still clears MIN_RUN_PX when the
+// Whether a chord holding `share` of its bar still clears MIN_RUN_PX when the
 // width is split `perRow` ways.
-export function fitsPerRow(width: number, perRow: number, finest: number): boolean {
+export function fitsPerRow(width: number, perRow: number, share: number): boolean {
   const barWidth = (width - GRID_GAP_PX * (perRow - 1)) / perRow;
-  return (barWidth * finest) / SLOTS_PER_MEASURE >= MIN_RUN_PX;
+  return barWidth * share >= MIN_RUN_PX;
 }
 
 // Each line is packed on its own terms: it takes the most bars it can whose
@@ -57,13 +64,13 @@ export function fitsPerRow(width: number, perRow: number, finest: number): boole
 //
 // `width` is the grid's inner width in pixels; 0 means it has not been
 // measured yet, and the widest layout stands until it has.
-export function packRows(spans: number[], width: number): Row[] {
+export function packRows(shares: number[], width: number): Row[] {
   const rows: Row[] = [];
   let i = 0;
-  while (i < spans.length) {
+  while (i < shares.length) {
     let take = ROW_WIDTHS[ROW_WIDTHS.length - 1];
     for (const n of ROW_WIDTHS) {
-      const finest = Math.min(...spans.slice(i, i + n));
+      const finest = Math.min(...shares.slice(i, i + n));
       if (width === 0 || fitsPerRow(width, n, finest)) {
         take = n;
         break;

@@ -543,6 +543,30 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   width: 100%;
   font-size: 17px;
 }
+/* The time signature, at the head of the bar that declares it -- and only
+   there, the way a stave prints it once and leaves it standing. Stacked
+   numerals in the same serif as the chord names, at the weight Georgia sets
+   for text: the sign belongs to the music rather than to the interface, and a
+   bold one would shout over the chords it is standing next to.
+
+   The rule down its right is the bar line a stave puts between the sign and
+   the first note. */
+.time-signature {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+  padding-right: 9px;
+  margin-right: 3px;
+  border-right: 1px solid var(--muted);
+}
+
 
 /* A chord is written where it starts sounding, so a run is read from its left
    edge rather than centred in the time it fills. The padding is for the bar

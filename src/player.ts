@@ -1,15 +1,14 @@
 import * as Tone from 'tone';
 import type { Song as ParsedSong } from './chord';
-import { SLOTS_PER_MEASURE } from './chord';
-import type { ExpandedMeasure } from './slots';
-import { expandSong } from './slots';
-import { BEATS_PER_MEASURE, generateBassLine } from './bass';
+import { SLOTS_PER_BEAT } from './chord';
+import type { ExpandedMeasure, Timeline } from './slots';
+import { barAtSlot, buildTimeline, expandSong, totalSlots } from './slots';
+import { generateBassLine } from './bass';
 import type { DrumHit } from './drums';
 import { drumsForSlot } from './drums';
 import { DrawQueue } from './drawqueue';
 
 // The transport already ticks in eighths, so one tick is one slot.
-const SLOTS_PER_BEAT = SLOTS_PER_MEASURE / BEATS_PER_MEASURE;
 const SWING_AMOUNT = 0.53;
 
 // A walking note stops a little short of the next one. Held for its full beat
@@ -93,6 +92,11 @@ export class Player {
   private draw = new DrawQueue<BeatEvent>();
   private frame: number | null = null;
   private expanded: ExpandedMeasure[] = [];
+  private timeline: Timeline = { slotAt: [0], beatAt: [0] };
+  // How long the count is, which is the bar it counts into rather than a bar
+  // of 4/4: counting four beats into a bar of three puts the band in the wrong
+  // place.
+  private countInSlots = 0;
   // One MIDI note per beat of `expanded`, worked out once when Play is
   // pressed: the walk is the same every time round the loop.
   private line: (number | null)[] = [];
@@ -122,14 +126,17 @@ export class Player {
     this.cfg = cfg;
     this.expanded = expandSong(cfg.song, cfg.loopStart, cfg.loopEnd);
     if (this.expanded.length === 0) return;
+    this.timeline = buildTimeline(this.expanded);
     this.line = generateBassLine(this.expanded);
 
     Tone.getTransport().bpm.value = cfg.bpm;
     Tone.getTransport().swing = cfg.swing ? SWING_AMOUNT : 0;
     Tone.getTransport().swingSubdivision = '8n';
 
-    this.slotIndex = this.offsetOf(cfg.startMeasure) * SLOTS_PER_MEASURE;
-    this.countInSlotsLeft = cfg.countIn ? SLOTS_PER_MEASURE : 0;
+    const from = this.offsetOf(cfg.startMeasure);
+    this.slotIndex = this.timeline.slotAt[from];
+    this.countInSlots = this.expanded[from].beats * SLOTS_PER_BEAT;
+    this.countInSlotsLeft = cfg.countIn ? this.countInSlots : 0;
     this.kit = this.buildKit();
     this.state = 'playing';
 
@@ -203,7 +210,7 @@ export class Player {
     if (this.state === 'stopped') return;
     const at = this.expanded.findIndex((m) => m.sourceIndex === sourceIndex);
     if (at < 0) return;
-    this.slotIndex = at * SLOTS_PER_MEASURE;
+    this.slotIndex = this.timeline.slotAt[at];
     this.anchorTime = -1;
     // What was queued belongs to the bar being left behind.
     this.draw.clear();
@@ -264,7 +271,7 @@ export class Player {
     if (!this.cfg) return;
 
     if (this.countInSlotsLeft > 0) {
-      const slotsElapsed = (SLOTS_PER_MEASURE - this.countInSlotsLeft);
+      const slotsElapsed = (this.countInSlots - this.countInSlotsLeft);
       const isDownbeat = slotsElapsed % SLOTS_PER_BEAT === 0;
       if (isDownbeat) {
         this.kit?.click.triggerAttackRelease('16n', time);
@@ -276,12 +283,12 @@ export class Player {
     }
 
     if (this.expanded.length === 0) return;
-    const total = this.expanded.length * SLOTS_PER_MEASURE;
+    const total = totalSlots(this.timeline);
     const idx = this.slotIndex % total;
-    const mIdx = Math.floor(idx / SLOTS_PER_MEASURE);
-    const slotInMeasure = idx % SLOTS_PER_MEASURE;
-    const beatIdx = Math.floor(idx / SLOTS_PER_BEAT);
+    const mIdx = barAtSlot(this.timeline, idx);
+    const slotInMeasure = idx - this.timeline.slotAt[mIdx];
     const bIdx = Math.floor(slotInMeasure / SLOTS_PER_BEAT);
+    const beatIdx = this.timeline.beatAt[mIdx] + bIdx;
     const isDownbeat = slotInMeasure % SLOTS_PER_BEAT === 0;
 
     if (this.anchorTime < 0) {
@@ -322,7 +329,7 @@ export class Player {
   position(): number | null {
     if (this.state !== 'playing' || this.anchorTime < 0) return null;
     if (this.countInSlotsLeft > 0) return null;
-    const total = this.expanded.length * SLOTS_PER_MEASURE;
+    const total = totalSlots(this.timeline);
     if (total === 0) return null;
     const slotSeconds = 30 / (this.cfg?.bpm ?? 120);
     // The transport schedules ahead of the sound, so for a moment after an
@@ -334,10 +341,12 @@ export class Player {
       this.anchorSlot + (Tone.getContext().currentTime - this.anchorTime) / slotSeconds,
     );
     const at = slots % total;
-    const mIdx = Math.floor(at / SLOTS_PER_MEASURE);
+    const mIdx = barAtSlot(this.timeline, at);
     const measure = this.expanded[mIdx];
     if (!measure) return null;
-    return measure.sourceIndex + (at - mIdx * SLOTS_PER_MEASURE) / SLOTS_PER_MEASURE;
+    const start = this.timeline.slotAt[mIdx];
+    return measure.sourceIndex
+      + (at - start) / (measure.beats * SLOTS_PER_BEAT);
   }
 
   private playDrum(hit: DrumHit, time: number) {

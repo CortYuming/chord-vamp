@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import {
-  KEY_CHOICES, keyChoiceFor, keyPreferFor, noteLabel, parseSong, resolveKeyRoot, transposeSong,
+  DEFAULT_BEATS, KEY_CHOICES, keyChoiceFor, keyPreferFor, noteLabel, parseSong,
+  resolveKeyRoot, transposeSong,
 } from './chord';
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
 import { useSongs } from './hooks/useSongs';
 import type { PlayerState } from './player';
 import { Player } from './player';
-import { BEATS_PER_MEASURE } from './bass';
 import * as Tone from 'tone';
 import {
   loadCurrent, loadPrefs, loadSongs, loadYtPrefs, newSong, saveCurrent, savePrefs, saveYtPrefs,
@@ -114,6 +114,9 @@ function App() {
   // on every click. A count that is counted up rather than taken away survives
   // a frame busy enough to carry two beats at once.
   const [countInBeat, setCountInBeat] = useState<number | null>(null);
+  // How many beats the count runs for: the meter of the bar it counts into,
+  // so a tune in 3/4 gets three and not four.
+  const [countInBeats, setCountInBeats] = useState(DEFAULT_BEATS);
   const [loopStart, setLoopStart] = useState<number | null>(YT_PREFS?.loopStart ?? null);
   const [loopEnd, setLoopEnd] = useState<number | null>(YT_PREFS?.loopEnd ?? null);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
@@ -305,6 +308,7 @@ function App() {
     const from = currentMeasure >= lo && currentMeasure <= hi ? currentMeasure : lo;
     setCurrentMeasure(from);
     setPlayState('playing');
+    setCountInBeats(parsed.measures[from]?.beats ?? DEFAULT_BEATS);
     setCountInBeat(useCountIn ? 0 : null);
     await player.start({
       song: parsed,
@@ -318,7 +322,7 @@ function App() {
       bass: bassOn,
       drums: drumsOn,
       // The count leaves the playhead where it is: the bar about to sound is
-      // the one to be looking at while the four beats go by.
+      // the one to be looking at while the beats go by.
       onBeat: (mIdx, bIdx, isCountIn) => {
         if (isCountIn) {
           setCountInBeat(bIdx + 1);
@@ -802,7 +806,7 @@ function App() {
       {countInBeat !== null && (
         <div className="count-in" aria-hidden="true">
           <div className="count-in-dots">
-            {Array.from({ length: BEATS_PER_MEASURE }, (_, i) => (
+            {Array.from({ length: countInBeats }, (_, i) => (
               <span
                 key={i}
                 className={'count-in-dot' + (i < countInBeat ? ' lit' : '')}

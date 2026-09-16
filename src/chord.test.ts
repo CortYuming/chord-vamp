@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_BEATS,
   KEY_CHOICES,
   keyChoiceByLabel,
   keyChoiceFor,
@@ -12,7 +13,9 @@ import {
   noteLabel,
   parseChord,
   parseSong,
+  readMeter,
   resolveKeyRoot,
+  slotsOf,
   transposeChord,
   transposeSong,
 } from './chord';
@@ -230,6 +233,8 @@ describe('parseSong', () => {
     expect(s.measures[0]).toEqual({
       kind: 'chords',
       chords: [{ raw: 'F13', root: 5, quality: '13', bass: null }],
+      beats: DEFAULT_BEATS,
+      meterMark: false,
     });
     expect(s.errors).toEqual([]);
   });
@@ -461,5 +466,108 @@ describe('KEY_CHOICES', () => {
     expect(keyChoiceFor(0, false).label).toBe('C');
     expect(keyChoiceFor(0, true).label).toBe('Am');
     expect(keyChoiceFor(9, true).label).toBe('F#m');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Time signatures
+//
+// Written as `T34` at the head of a bar and standing from there until another
+// one is written, which is how a stave carries the sign.
+// ---------------------------------------------------------------------------
+
+describe('readMeter', () => {
+  it('reads the quarter-note meters', () => {
+    expect(readMeter('T24')).toBe(2);
+    expect(readMeter('T34')).toBe(3);
+    expect(readMeter('T44')).toBe(4);
+    expect(readMeter('T54')).toBe(5);
+  });
+
+  it('refuses a meter counted in anything but quarters', () => {
+    // 6/8 counts in dotted beats, which the bass and the kit would both have
+    // to be told about. Refused rather than read as six quarter notes.
+    expect(readMeter('T68')).toBeNull();
+    expect(readMeter('T38')).toBeNull();
+  });
+
+  it('refuses a bar of no beats, or more than the token can hold', () => {
+    expect(readMeter('T04')).toBeNull();
+    expect(readMeter('T444')).toBeNull();
+  });
+
+  it('is not a chord', () => {
+    expect(parseChord('T44')).toBeNull();
+  });
+});
+
+describe('parseSong with time signatures', () => {
+  const metersOf = (sheet: string) => parseSong(sheet).measures.map(m => m.beats);
+  const marksOf = (sheet: string) => parseSong(sheet).measures.map(m => m.meterMark);
+
+  it('reads a sheet with no sign at all as 4/4', () => {
+    expect(metersOf('|C|D|')).toEqual([DEFAULT_BEATS, DEFAULT_BEATS]);
+    expect(marksOf('|C|D|')).toEqual([false, false]);
+  });
+
+  it('holds the meter from where it is written until it changes', () => {
+    expect(metersOf('|T34 C|D|T44 E|F|')).toEqual([3, 3, 4, 4]);
+  });
+
+  it('marks only the bar that declared it, which is the bar that draws it', () => {
+    expect(marksOf('|T34 C|D|T44 E|F|')).toEqual([true, false, true, false]);
+  });
+
+  it('gives a bar the slots its meter asks for', () => {
+    const { measures } = parseSong('|T24 C|T34 D|T44 E|');
+    expect(measures.map(slotsOf)).toEqual([4, 6, 8]);
+  });
+
+  it('carries the meter into empty bars and repeat marks', () => {
+    expect(metersOf('|T34 C|%|')).toEqual([3, 3]);
+    expect(metersOf('|T34 C||')).toEqual([3, 3]);
+  });
+
+  it('wants the sign at the head of the bar, where it is engraved', () => {
+    const s = parseSong('|C T34 D|');
+    expect(s.errors).toEqual([
+      'measure 1: a time signature belongs at the head of the bar',
+    ]);
+    // The bar is still read; the sign is what was refused.
+    expect(s.measures[0].beats).toBe(DEFAULT_BEATS);
+  });
+
+  it('says so when the sign is one it cannot read', () => {
+    const s = parseSong('|T68 C|');
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]).toContain('not a time signature');
+    expect(s.measures[0].beats).toBe(DEFAULT_BEATS);
+  });
+
+  // A repeat sign copies the bar before it, and four chords do not fit a bar
+  // of three beats. A stave does not write one across a change of meter
+  // either, so this is the sheet being wrong rather than something to rescale.
+  it('refuses a repeat mark that reaches across a change of meter', () => {
+    const s = parseSong('|C D E F|T34 %|');
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]).toContain('repeats');
+  });
+
+  it('allows a repeat mark where the meter has not changed', () => {
+    expect(parseSong('|T34 C D E|%|').errors).toEqual([]);
+    expect(parseSong('|T34 C D E|%|%%|').errors).toEqual([]);
+  });
+
+  it('counts an overfull bar against its own meter', () => {
+    const s = parseSong('|T24 A B C D E|');
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]).toContain('5 chords in one bar of 2/4');
+    // The same five chords are nothing to complain about in 4/4.
+    expect(parseSong('|A B C D E|').errors).toEqual([]);
+  });
+
+  it('leaves the sign alone when the sheet is transposed', () => {
+    expect(transposeSong('|T34 Cm7|T24 F7 Bb/D|', 2, 'sharp'))
+      .toBe('|T34 Dm7|T24 G7 C/E|');
   });
 });

@@ -87,10 +87,47 @@ export function keyPreferFor(semi: number): Accidental {
   return KEY_PREFER[i];
 }
 
-// A bar is read in eighth-note slots -- eight of them in 4/4. Four was the
-// old resolution, and it could not hold a chord that lands off the beat: an
-// anticipation had to be dropped from the sheet to keep the bar parseable.
-export const SLOTS_PER_MEASURE = 8;
+// A bar is read in eighth-note slots -- two to the beat. Four slots to the bar
+// was the old resolution, and it could not hold a chord that lands off the
+// beat: an anticipation had to be dropped from the sheet to keep the bar
+// parseable.
+export const SLOTS_PER_BEAT = 2;
+
+// The meter a sheet is in until it says otherwise, and how long a bar of it
+// runs. Both are the 4/4 case of the general rule and not a fixed property of
+// a bar any more: `slotsOf` is what asks a particular bar how long it is.
+export const DEFAULT_BEATS = 4;
+export const SLOTS_PER_MEASURE = DEFAULT_BEATS * SLOTS_PER_BEAT;
+
+// The most beats a bar can be written with. The token carries one digit for
+// the count -- T54 is 5/4 -- so ten is where the notation runs out rather
+// than where the music does.
+export const MAX_BEATS = 9;
+
+/**
+ * A time signature as this app writes it: `T34` at the head of a bar, in force
+ * from there until another one is written, which is how a stave carries it.
+ * Only quarter-note meters are read; `T68` is refused rather than guessed at,
+ * since a compound meter counts in dotted beats and the bass and the kit would
+ * both have to be told about it.
+ */
+const METER_TOKEN = /^T\d/;
+const METER = /^T(\d)(\d)$/;
+
+export function isMeterToken(token: string): boolean {
+  return METER_TOKEN.test(token);
+}
+
+/** The beats a meter token names, or null for one this app cannot read. */
+export function readMeter(token: string): number | null {
+  const m = METER.exec(token);
+  if (!m) return null;
+  const beats = Number(m[1]);
+  const unit = Number(m[2]);
+  if (unit !== 4) return null;
+  if (beats < 1 || beats > MAX_BEATS) return null;
+  return beats;
+}
 
 export interface Chord {
   raw: string;
@@ -100,10 +137,31 @@ export interface Chord {
   isRepeat?: boolean;
 }
 
+/**
+ * What every bar carries whatever is written in it: the meter it is read in,
+ * and whether it is the bar that declared it.
+ *
+ * The meter is resolved here, at parse time, rather than being worked out by
+ * whoever walks the sheet later. A time signature holds from where it is
+ * written, so working it out later means walking backwards -- and the player
+ * does not have the bars before the loop to walk back through.
+ */
+interface MeasureCommon {
+  /** Beats in the bar. The unit is always a quarter note. */
+  beats: number;
+  /** Whether this bar is where the meter was written, and so draws the sign. */
+  meterMark: boolean;
+}
+
 export type Measure =
-  | { kind: 'chords'; chords: Chord[] }
-  | { kind: 'repeat1' }
-  | { kind: 'repeat2' };
+  | (MeasureCommon & { kind: 'chords'; chords: Chord[] })
+  | (MeasureCommon & { kind: 'repeat1' })
+  | (MeasureCommon & { kind: 'repeat2' });
+
+/** How many eighth-note slots a bar runs for. */
+export function slotsOf(measure: { beats: number }): number {
+  return measure.beats * SLOTS_PER_BEAT;
+}
 
 export interface Song {
   measures: Measure[];
@@ -201,6 +259,7 @@ export function transposeSong(
 ): string {
   return text.replace(/[^\s|]+/g, (token) => {
     if (token === '%' || token === '%%' || token === '.') return token;
+    if (isMeterToken(token)) return token;
     return transposeChord(token, semitones, prefer);
   });
 }
@@ -284,23 +343,74 @@ export function parseSong(text: string): Song {
   const stripped = trimmed.replace(/^\|/, '').replace(/\|$/, '');
   const cells = stripped.split('|');
 
+  // The meter in force. It starts at 4/4 and changes where a bar says so,
+  // which is how a stave reads: the sign appears once and stands until the
+  // next one.
+  let beats = DEFAULT_BEATS;
+
   cells.forEach((cell, i) => {
     const t = cell.trim();
-    if (t === '%') {
-      measures.push({ kind: 'repeat1' });
+    const tokens = t === '' ? [] : t.split(/\s+/);
+
+    // The time signature comes off the front of the bar before anything else
+    // is read, the way it is engraved: after the bar line, before the music.
+    let meterMark = false;
+    const body: string[] = [];
+    tokens.forEach((tk, pos) => {
+      if (!isMeterToken(tk)) {
+        body.push(tk);
+        return;
+      }
+      if (pos !== 0) {
+        errors.push(
+          `measure ${i + 1}: a time signature belongs at the head of the bar`,
+        );
+        return;
+      }
+      const read = readMeter(tk);
+      if (read === null) {
+        errors.push(
+          `measure ${i + 1}: "${tk}" is not a time signature this app reads -- ` +
+          `write 3/4 as T34, and only quarter-note meters up to ${MAX_BEATS} beats`,
+        );
+        return;
+      }
+      beats = read;
+      meterMark = true;
+    });
+
+    const rest = body.join(' ');
+
+    // A repeat sign copies the bar before it, which it can only do when that
+    // bar is the same length: four chords do not fit a bar of three beats, and
+    // rescaling them would sound a rhythm nobody wrote. A stave does not write
+    // one across a change of meter either.
+    const checkRepeat = (back: number): void => {
+      const source = measures[measures.length - back];
+      if (!source || source.beats === beats) return;
+      errors.push(
+        `measure ${i + 1}: this bar is ${beats}/4 and the bar it repeats is ` +
+        `${source.beats}/4 -- write the chords out instead`,
+      );
+    };
+
+    if (rest === '%') {
+      checkRepeat(1);
+      measures.push({ kind: 'repeat1', beats, meterMark });
       return;
     }
-    if (t === '%%') {
-      measures.push({ kind: 'repeat2' });
+    if (rest === '%%') {
+      checkRepeat(2);
+      measures.push({ kind: 'repeat2', beats, meterMark });
       return;
     }
-    if (t === '') {
-      measures.push({ kind: 'chords', chords: [] });
+    if (rest === '') {
+      measures.push({ kind: 'chords', chords: [], beats, meterMark });
       return;
     }
-    const tokens = t.split(/\s+/);
+
     const chords: Chord[] = [];
-    for (const tk of tokens) {
+    for (const tk of body) {
       if (tk === '.') {
         const prev = chords[chords.length - 1];
         if (!prev) {
@@ -317,13 +427,14 @@ export function parseSong(text: string): Song {
         chords.push(c);
       }
     }
-    if (chords.length > SLOTS_PER_MEASURE) {
+    const slots = beats * SLOTS_PER_BEAT;
+    if (chords.length > slots) {
       errors.push(
-        `measure ${i + 1}: ${chords.length} chords in one bar, only ` +
-        `${SLOTS_PER_MEASURE} fit -- the rest will not sound`,
+        `measure ${i + 1}: ${chords.length} chords in one bar of ${beats}/4, ` +
+        `only ${slots} fit -- the rest will not sound`,
       );
     }
-    measures.push({ kind: 'chords', chords });
+    measures.push({ kind: 'chords', chords, beats, meterMark });
   });
 
   return { measures, errors };
