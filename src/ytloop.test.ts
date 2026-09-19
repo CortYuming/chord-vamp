@@ -86,13 +86,13 @@ describe('readYtSource', () => {
 describe('barUrl', () => {
   it('sends the video to the seconds the bar covers', () => {
     expect(barUrl(SOURCE, 0, HERE))
-      .toBe('https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90');
+      .toBe('https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90&view=sheet');
   });
 
   // The last bar of a sheet, with nothing after it to take an end from.
   it('sends a start alone where the bar has no end', () => {
     expect(barUrl(SOURCE, 1, HERE))
-      .toBe('https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90');
+      .toBe('https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90&view=sheet');
   });
 
   it('leads nowhere from a bar with no time on it', () => {
@@ -105,7 +105,7 @@ describe('barUrl', () => {
   // production, and the link is written relative to wherever this page is.
   it('is written next to wherever this app is', () => {
     expect(barUrl(SOURCE, 0, 'http://localhost:8800/chord-vamp/'))
-      .toBe('http://localhost:8800/yt-loop/?v=abc123&s=43.50&e=45.90');
+      .toBe('http://localhost:8800/yt-loop/?v=abc123&s=43.50&e=45.90&view=sheet');
   });
 });
 
@@ -120,7 +120,7 @@ describe('jumpToBar', () => {
     const win = fakeWindow();
     expect(jumpToBar(SOURCE, 0, win as unknown as Window)).toBe(true);
     expect(win.open).toHaveBeenCalledWith(
-      'https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90',
+      'https://cortyuming.github.io/yt-loop/?v=abc123&s=43.50&e=45.90&view=sheet',
       '_blank',
     );
   });
@@ -129,7 +129,7 @@ describe('jumpToBar', () => {
     const win = fakeWindow();
     jumpToBar(SOURCE, 1, win as unknown as Window);
     expect(win.open).toHaveBeenCalledWith(
-      'https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90',
+      'https://cortyuming.github.io/yt-loop/?v=abc123&s=45.90&view=sheet',
       '_blank',
     );
   });

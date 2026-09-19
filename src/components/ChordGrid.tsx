@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Measure, Chord, Accidental, Meter } from '../chord';
-import { chordToString, chordToDegree, meterLabel, slotsOf } from '../chord';
+import { chordToString, chordToDegree, meterLabel, prettyAccidentals, slotsOf } from '../chord';
 import { measureRuns } from '../slots';
 import { finestShares, packRows, rowIndexOf } from '../layout';
 
@@ -29,6 +29,18 @@ interface Props {
    * a middle click, and for anyone who wants the address itself.
    */
   onBarJump?: (i: number) => void;
+  /**
+   * Counts presses of F. A number that has changed since the last render is a
+   * reader asking to be shown the bar the playhead is on; the value itself
+   * means nothing.
+   */
+  revealAt?: number;
+  /**
+   * How much of the top of the window is covered by whatever is pinned there
+   * -- the transport, once the sheet has scrolled under it. A line hidden
+   * behind it is a line that is not on screen, whatever the geometry says.
+   */
+  topInset?: () => number;
 }
 
 // Where the line being played is held on screen: a third of the way down.
@@ -40,6 +52,28 @@ const PLAYHEAD_ANCHOR = 1 / 3;
 function onScreen(el: HTMLElement): boolean {
   const r = el.getBoundingClientRect();
   return r.bottom > 0 && r.top < window.innerHeight;
+}
+
+// Whether a line is there to be read: in the window whole, and clear of
+// anything pinned over the top of it. Stricter than onScreen above on purpose
+// -- half a row of chords showing under the transport is the thing F is
+// pressed to fix, so it does not count as being on screen.
+function inFullView(el: HTMLElement, inset: number): boolean {
+  const r = el.getBoundingClientRect();
+  return r.top >= inset && r.bottom <= window.innerHeight;
+}
+
+// A line to where the playhead is read, a third of the way down the window.
+// Instant when there is no journey worth showing: a loop coming round, or a
+// line fetched back from somewhere off the page entirely.
+function scrollRowToAnchor(el: HTMLElement, instant: boolean) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const top = el.getBoundingClientRect().top + window.scrollY
+    - window.innerHeight * PLAYHEAD_ANCHOR;
+  window.scrollTo({
+    top: Math.max(0, top),
+    behavior: instant || reduce ? 'auto' : 'smooth',
+  });
 }
 
 function SimileMark({ variant }: { variant: 'single' | 'double' }) {
@@ -137,7 +171,7 @@ function chordLines(
       ? (((chord.bass + transpose) % 12) + 12) % 12
       : null,
   };
-  const note = chordToString(shifted, prefer);
+  const note = prettyAccidentals(chordToString(shifted, prefer));
   return { degree, note };
 }
 
@@ -154,6 +188,8 @@ export function ChordGrid({
   onGridUp,
   barHref,
   onBarJump,
+  revealAt,
+  topInset,
 }: Props) {
   // The grid's own width, watched rather than read once: the page is as wide
   // as the window now, so this changes without the sheet changing.
@@ -217,14 +253,28 @@ export function ChordGrid({
     // reader's eye is a worse interruption than simply being there.
     const wrapped = row < lastRow.current;
     lastRow.current = row;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const top = el.getBoundingClientRect().top + window.scrollY
-      - window.innerHeight * PLAYHEAD_ANCHOR;
-    window.scrollTo({
-      top: Math.max(0, top),
-      behavior: wrapped || reduce ? 'auto' : 'smooth',
-    });
+    scrollRowToAnchor(el, wrapped);
   }, [currentMeasure, rows]);
+
+  // F, and the playhead is fetched back. Following stops as soon as the
+  // playing line is scrolled out of the window, which is right while the
+  // reader is looking at something else and wrong the moment they want to be
+  // back with the music -- so this puts the line exactly where the following
+  // would have put it, and hands the following back to the run.
+  //
+  // A line already there in full is left alone: the press is for finding the
+  // bar, not for shuffling the page under someone already reading it.
+  const lastReveal = useRef(revealAt);
+  useEffect(() => {
+    if (revealAt === lastReveal.current) return;
+    lastReveal.current = revealAt;
+    const row = rowIndexOf(rows, currentMeasure);
+    if (row < 0) return;
+    const el = rowEls.current.get(row);
+    if (!el || inFullView(el, topInset ? topInset() : 0)) return;
+    scrollRowToAnchor(el, false);
+    lastRow.current = row;
+  }, [revealAt, rows, currentMeasure, topInset]);
 
   const loopLo = loopStart !== null && loopEnd !== null ? Math.min(loopStart, loopEnd) : null;
   const loopHi = loopStart !== null && loopEnd !== null ? Math.max(loopStart, loopEnd) : null;

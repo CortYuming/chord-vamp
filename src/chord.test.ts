@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   beatsOfMeter,
+  prettyAccidentals,
   DEFAULT_METER,
   KEY_CHOICES,
   keyChoiceByLabel,
@@ -192,9 +193,10 @@ describe('chordToDegree', () => {
     expect(chordToDegree(c, 0, 0)).toBe('IV');
   });
 
+  // Written with the sign, like the chord name it sits over.
   it('flat degrees', () => {
     const c = parseChord('Db7')!;
-    expect(chordToDegree(c, 0, 0)).toBe('bII');
+    expect(chordToDegree(c, 0, 0)).toBe('♭II');
   });
 
   it('transposes correctly with key', () => {
@@ -679,5 +681,39 @@ describe('parseSong with time signatures', () => {
     expect(s.measures.map(slotsOf)).toEqual([8, 4, 8, 3, 3]);
     expect(s.measures.map(m => m.meterMark))
       .toEqual([false, true, true, true, false]);
+  });
+});
+
+describe('prettyAccidentals', () => {
+  it('sets a root the way it is read', () => {
+    expect(prettyAccidentals('Bb7')).toBe('B♭7');
+    expect(prettyAccidentals('F#m7')).toBe('F♯m7');
+  });
+
+  it('sets an altered tension too', () => {
+    expect(prettyAccidentals('C#m7b5')).toBe('C♯m7♭5');
+    expect(prettyAccidentals('G7b9')).toBe('G7♭9');
+    expect(prettyAccidentals('Eb13b9')).toBe('E♭13♭9');
+  });
+
+  it('sets the bass after a slash', () => {
+    expect(prettyAccidentals('Db/Ab')).toBe('D♭/A♭');
+  });
+
+  // The b of a quality is a letter, not a sign: the one in sub and the one in
+  // a name nobody expected still have to come out the other side.
+  it('leaves a lowercase b that is not an accidental alone', () => {
+    expect(prettyAccidentals('Cmaj7')).toBe('Cmaj7');
+    expect(prettyAccidentals('N.C.')).toBe('N.C.');
+  });
+
+  // What goes into a link, a sheet or storage is the ASCII this undoes.
+  it('is the other half of what parseChord accepts', () => {
+    const pretty = prettyAccidentals('Bbmaj7#11');
+    expect(pretty).toBe('B♭maj7♯11');
+    const { raw, ...read } = parseChord(pretty)!;
+    expect(raw).toBe(pretty);
+    const { raw: _ascii, ...same } = parseChord('Bbmaj7#11')!;
+    expect(read).toEqual(same);
   });
 });

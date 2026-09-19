@@ -88,6 +88,12 @@ export function readYtSource(search: string): YtSource | null {
  * covers. Null where the bar has no time on it -- a sheet being written from
  * the top has bars nobody has caught yet, and there is nowhere to send anyone.
  *
+ * `view=sheet` asks yt-loop to land on its sheet rather than at the top of its
+ * page -- the same place its own F key goes. Someone who followed a bar number
+ * out of a chart is coming back to that chart, and the video, the URL box and
+ * the loop fields sit between the landing and the bar they came for. yt-loop
+ * ignores the param if it does not know it, so an older copy still loads.
+ *
  * Written relative to this page, so the same call is right on GitHub Pages
  * (`/chord-vamp/` next to `/yt-loop/`) and on a dev server serving both.
  */
@@ -98,6 +104,7 @@ export function barUrl(src: YtSource, bar: number, here: string): string | null 
   params.set('v', src.videoId);
   params.set('s', span.start.toFixed(2));
   if (span.end !== null) params.set('e', span.end.toFixed(2));
+  params.set('view', 'sheet');
   return new URL(`../yt-loop/?${params.toString()}`, here).href;
 }
 

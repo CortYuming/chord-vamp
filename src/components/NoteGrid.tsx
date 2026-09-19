@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Measure, Chord, Accidental } from '../chord';
-import { chordDegreeRoot, noteLabel, SLOTS_PER_MEASURE } from '../chord';
+import { chordDegreeRoot, noteLabel, prettyAccidentals, SLOTS_PER_MEASURE } from '../chord';
 import { expandSong, slotRuns } from '../slots';
 import {
   chordTones, scaleFor, degreeLabel,
@@ -183,7 +183,7 @@ export function NoteGrid({
   // A note's reading. Names and solfege count from the key; degrees count from
   // the chord, because a degree only means anything against its own chord.
   const label = (semiFromKey: number, chord: Chord | null): string => {
-    if (mode === 'note') return noteLabel(pc(keyRoot + semiFromKey), prefer);
+    if (mode === 'note') return prettyAccidentals(noteLabel(pc(keyRoot + semiFromKey), prefer));
     if (mode === 'solfa') return (flat ? SOLFEGE_FLAT : SOLFEGE_SHARP)[semiFromKey];
     if (!chord || chord.root === null) return KEY_DEGREE[semiFromKey];
     const rel = pc(keyRoot + semiFromKey - (chord.root + transpose));
@@ -228,7 +228,7 @@ export function NoteGrid({
           >
             <span className="ng-cname">
               {c.chord && c.chord.root !== null
-                ? noteLabel(pc(c.chord.root + transpose), prefer) + c.chord.quality
+                ? prettyAccidentals(noteLabel(pc(c.chord.root + transpose), prefer) + c.chord.quality)
                 : '·'}
             </span>
             <span className="ng-roman">
