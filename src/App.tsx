@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import {
   beatsOf, beatsOfMeter, DEFAULT_METER, KEY_CHOICES, keyChoiceFor,
-  keyPreferFor, noteLabel, parseSong, resolveKeyRoot, transposeSong,
+  keyPreferFor, noteLabel, parseSong, prettyAccidentals, resolveKeyRoot, transposeSong,
 } from './chord';
 import { ChordGrid } from './components/ChordGrid';
 import { NoteGrid, type NoteLabelMode } from './components/NoteGrid';
@@ -109,6 +109,11 @@ function App() {
   // outlives a run rather than being wiped when the music stops. -1 is a chart
   // nobody has pointed at yet, which starts from the top.
   const [currentMeasure, setCurrentMeasure] = useState(-1);
+  // Every press of F, counted. The scrolling belongs to the grid -- it is the
+  // component that knows which line a bar ended up on -- so what travels down
+  // is the press itself, and a number that only ever goes up is a press the
+  // grid cannot miss or repeat.
+  const [revealTick, setRevealTick] = useState(0);
   // The count-in, as the number of beats that have been struck: null while
   // there is no count to show, then 0 the moment Play is pressed and one more
   // on every click. A count that is counted up rather than taken away survives
@@ -146,6 +151,17 @@ function App() {
     if (isRunning) playerRef.current?.setParts(bassOn, drumsOn);
   }, [bassOn, drumsOn, isRunning]);
 
+
+  // How much of the top of the window the transport is sitting over. It is
+  // stuck there only once the page has scrolled past it, so above that it
+  // covers nothing.
+  const transportRef = useRef<HTMLElement>(null);
+  const topInset = useCallback(() => {
+    const el = transportRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    return r.top <= 0 ? Math.max(0, r.bottom) : 0;
+  }, []);
 
   const playerRef = useRef<Player | null>(null);
   if (!playerRef.current) playerRef.current = new Player();
@@ -258,8 +274,9 @@ function App() {
     const sounding = (((root + prev.transpose) % 12) + 12) % 12;
     const sign = prev.transpose >= 0 ? '+' : '';
     const rewritten = prev.chordsRaw !== currentSong.chordsRaw ? ', restoring the chords' : '';
-    return `Back to ${noteLabel(root, keyPreferFor(root))} / sounding `
-      + `${noteLabel(sounding, keyPreferFor(sounding))} (${sign}${prev.transpose})${rewritten}`;
+    return `Back to ${prettyAccidentals(noteLabel(root, keyPreferFor(root)))} / sounding `
+      + `${prettyAccidentals(noteLabel(sounding, keyPreferFor(sounding)))} `
+      + `(${sign}${prev.transpose})${rewritten}`;
   })();
 
   /**
@@ -502,7 +519,8 @@ function App() {
       if (target instanceof HTMLTextAreaElement) return;
       if (target instanceof HTMLInputElement && TEXT_ENTRY_TYPES.has(target.type)) return;
       const known = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
-        || e.key === ' ' || e.key === 'e' || e.key === 'E';
+        || e.key === ' ' || e.key === 'e' || e.key === 'E'
+        || e.key === 'a' || e.key === 'A' || e.key === 'f' || e.key === 'F';
       if (!known) return;
       // The arrows step BPM and the volume slider, so those two keep them.
       // Every control here holds focus once it has been used, though, and the
@@ -517,6 +535,12 @@ function App() {
       if (e.key === 'ArrowLeft') stepPoint(-1);
       else if (e.key === 'ArrowRight') stepPoint(1);
       else if (e.key === ' ') handlePlay();
+      // Back to the top of what is being played, the way yt-loop's own A does
+      // it: the playhead moves and the music goes with it, so a run started
+      // mid-chorus carries on from the first bar rather than stopping dead.
+      // The rewind button beside Play is still the way to stop and go back.
+      else if (e.key === 'a' || e.key === 'A') movePoint(pointRange[0]);
+      else if (e.key === 'f' || e.key === 'F') setRevealTick(n => n + 1);
       else setShowSheet(v => !v);
     };
     window.addEventListener('keydown', handler);
@@ -690,7 +714,7 @@ function App() {
               title="Read the chart in this key. The chords stay as they are."
             >Set</button>
             {/* Rewriting the chords is out while the sheet is yt-loop's: the
-                text is not ours to change. ♭/♯ and Set both stand -- neither
+                text is not ours to change. Key and Set both stand -- neither
                 touches a character of it. */}
             {!YT_SOURCE && (
               <button
@@ -706,7 +730,7 @@ function App() {
         )}
       </section>
 
-      <section className="transport">
+      <section className="transport" ref={transportRef}>
         {/* Two buttons that never move: the space bar's own button, and the
             way back to the top on its left. Nothing to go back from while the
             chart sits at the top, so there it is simply not available. */}
@@ -838,6 +862,8 @@ function App() {
         onGridUp={handleGridUp}
         barHref={barHref}
         onBarJump={handleBarJump}
+        revealAt={revealTick}
+        topInset={topInset}
       />
 
       <section className="chord-input-section">
@@ -918,8 +944,8 @@ function App() {
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>
         <div>Repeats: <code>%</code> (same as previous bar) / <code>%%</code> (same as bar two back) / <code>.</code> (repeat previous chord within the same bar, e.g. <code>|Bb13 . . E9|</code>)</div>
         <div>Drag across bars to set a loop range. During playback, drag also stops. Count-in skipped while loop is active.</div>
-        <div>Click a bar to put the playhead on it. Shortcuts: <code>←</code>/<code>→</code> playhead one bar / <code>Space</code> play or pause / <code>e</code> sheet</div>
-        <div>Written <strong>{noteLabel(tonicRoot, keyPreferFor(tonicRoot))}</strong> / Sounding <strong>{noteLabel(displayedKey, prefer)}</strong> ({currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
+        <div>Click a bar to put the playhead on it. Shortcuts: <code>←</code>/<code>→</code> playhead one bar / <code>Space</code> play or pause / <code>a</code> back to the first bar / <code>f</code> find the playhead / <code>e</code> sheet</div>
+        <div>Written <strong>{prettyAccidentals(noteLabel(tonicRoot, keyPreferFor(tonicRoot)))}</strong> / Sounding <strong>{prettyAccidentals(noteLabel(displayedKey, prefer))}</strong> ({currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
       </footer>
     </div>
   );

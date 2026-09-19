@@ -13,15 +13,17 @@ https://cortyuming.github.io/chord-vamp/
 - In-bar chord repeat with `.` — `|Bb13 . . E9|` expands to `|Bb13 Bb13 Bb13 E9|`
 - Single- and two-bar repeat marks `%` / `%%`
 - Time signatures written at the head of a bar: `|T34 Cm7|`, in force until another one is written
-- 4-measures-per-row display with iReal Pro–style borders
+- Four measures to a line with iReal Pro–style borders, and fewer on a line whose chords would otherwise be drawn too narrow to read — a busy bar, or a narrow window
 - Bass root note played on quarter notes via Web Audio
 - Count-in of one bar before playback — as many clicks as the bar it counts into has beats; skipped on loop restart
 - Drag across measures to set a loop range
-- Transpose by semitone (`♭` / `♯` buttons or `←` / `→`), or pick a target Key directly
-- `♯` / `♭` accidental preference toggle
+- Pick a target Key, then **Set** to read the chart in it — the chords are left as they are — or **Set and transpose** to rewrite every chord into it. ↩ Undo takes back the last one, chords and all
+- Accidentals follow the key being read: a flat key is spelled with flats, a sharp key with sharps
 - Save named songs to localStorage with BPM and transpose baked in
 - Tap tempo
-- Space bar toggles play
+- Keyboard: `Space` play / pause, `←` `→` playhead one bar, `a` back to the first bar of what is playing — the loop's first bar where there is a loop, and the music carries on from there — `f` scrolls the playhead's line back into view when it has been left off screen, `e` the sheet box
+- Note names are drawn with the signs, `B♭7` and `C♯m7♭5`, as is the numeral over them. What is typed, stored and put in a link stays ASCII: `Bb7` is what the sheet box holds and what travels
+- The transport strip stays at the top of the window while the chart is scrolled, so Play, the tempo and the parts are where they were
 - Opens a sheet transcribed in [yt-loop](https://cortyuming.github.io/yt-loop/): its bars arrive in the link, and every bar number leads back to the second of the video it came from
 
 ## Chord Input Grammar
@@ -84,10 +86,14 @@ The sheet is **read, not written**. It belongs to yt-loop, where it is being
 made, and this app has nothing to say back about a transcription: the chord box
 is greyed, and Set and transpose — the one control that rewrites the chords — is
 gone. Everything that plays the sheet rather than changing it stands: tempo, tap,
-♭ / ♯, Set, the loop range. A sheet edited over there gets here by pressing the
+Key and Set, the loop range. A sheet edited over there gets here by pressing the
 button again; nothing is stored on either side to be kept in step.
 
-Each bar number is a link back to the video at the second that bar starts. It is
+Each bar number is a link back to the video at the second that bar starts. The
+link carries `view=sheet`, so yt-loop opens at its own sheet rather than at the
+top of its page — the same place its `F` key goes. Someone following a bar
+number is coming back to that bar, and the URL box, the video and the loop
+fields would otherwise sit between the landing and it. It is
 drawn as a link from the start rather than appearing under a pointer, since a
 chart is read on a phone as often as at a desk. It opens in a new tab, which is the one
 way a jump is certain to be seen.

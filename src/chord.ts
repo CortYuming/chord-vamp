@@ -232,6 +232,23 @@ function normalizeAccidental(s: string): string {
   return s.replace(/♯/g, '#').replace(/♭/g, 'b');
 }
 
+/**
+ * The ASCII a sheet is written in, set the way it is read: `Bb7` becomes
+ * `B♭7`, `C#m7b5` becomes `C♯m7♭5`. Display only -- what is stored,
+ * transposed and put in a link stays ASCII, which is the spelling the sheet
+ * box, the share URL and yt-loop's own parser all speak. Going the other way
+ * is `normalizeAccidental` above, which is how a sheet typed with the signs
+ * still parses.
+ */
+export function prettyAccidentals(s: string): string {
+  return s
+    .replace(/#/g, '♯')
+    // An altered tension: the b of b5, b9, b13.
+    .replace(/b(?=\d)/g, '♭')
+    // A flattened note name -- the root, or the bass after a slash.
+    .replace(/([A-G])b/g, '$1♭');
+}
+
 function parseRoot(str: string): { semi: number; length: number } | null {
   if (!str) return null;
   const upper = str[0].toUpperCase();
@@ -319,8 +336,11 @@ export function transposeSong(
   });
 }
 
+// Written with the sign rather than a lowercase b: these sit directly over the
+// chord names, which wear ♭ and ♯, and a numeral spelled bIII under a B♭7 reads
+// as two different sheets. Lowercased for a minor chord, which the sign ignores.
 const DEGREE_LABELS = [
-  'I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII',
+  'I', '♭II', 'II', '♭III', 'III', 'IV', '♭V', 'V', '♭VI', 'VI', '♭VII', 'VII',
 ] as const;
 
 function isMinorish(quality: string): boolean {
