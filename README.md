@@ -77,6 +77,12 @@ moment the button is pressed.
 ?v=<videoId>&k=<bars>&t=<times>&key=<key>&title=<video title>
 ```
 
+Each bar arrives written over its eighth-note slots — `|Bb7 . . . F7+5+9 . . .|`
+— so a chord transcribed on the third beat is played on the third beat rather
+than halfway through the bar. A bar of plain chord names, which is what yt-loop
+sends where nothing was transcribed under them, is split evenly as any other bar
+typed here would be.
+
 The key arrives spelled as the sheet spells it — `Bb`, `F#m`. The Key list here
 holds the same twenty-four keys yt-loop offers, in its order and its spellings,
 and a minor key counts from its relative major the way yt-loop counts it, so the
