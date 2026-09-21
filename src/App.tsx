@@ -383,12 +383,11 @@ function App() {
     await startRun();
   };
 
-  // Back to the top, standing still: the run is torn down and the playhead is
-  // put on the first bar of what is being played -- the loop's first bar when
-  // there is a loop.
+  // Back to the top of what is being played -- the loop's first bar when there
+  // is a loop -- without breaking whatever the player is doing: a run carries
+  // on from the top, and a held run stays held there, ready for Play.
   const handleRewind = () => {
-    playerRef.current?.stop();
-    setCurrentMeasure(pointRange[0]);
+    movePoint(pointRange[0]);
   };
 
   useEffect(() => {
@@ -538,7 +537,7 @@ function App() {
       // Back to the top of what is being played, the way yt-loop's own A does
       // it: the playhead moves and the music goes with it, so a run started
       // mid-chorus carries on from the first bar rather than stopping dead.
-      // The rewind button beside Play is still the way to stop and go back.
+      // The rewind button beside Play does the same.
       else if (e.key === 'a' || e.key === 'A') movePoint(pointRange[0]);
       else if (e.key === 'f' || e.key === 'F') setRevealTick(n => n + 1);
       else setShowSheet(v => !v);
@@ -593,7 +592,7 @@ function App() {
       for (let i = 1; i < next.length; i++) intervals.push(next[i] - next[i - 1]);
       const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const bpm = Math.round(60000 / avg);
-      if (bpm >= 40 && bpm <= 300) update({ bpm });
+      if (bpm >= 20 && bpm <= 300) update({ bpm });
     }
   };
 
@@ -754,7 +753,7 @@ function App() {
           <label>BPM</label>
           <input
             type="number"
-            min={40}
+            min={20}
             max={300}
             value={currentSong.bpm}
             onChange={(e) => update({ bpm: parseInt(e.target.value, 10) || 85 })}
