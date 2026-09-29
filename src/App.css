@@ -481,6 +481,18 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #201d18;
 }
 
+/* How far into the playing bar the music has got. Red, because the bar under
+   it is already the yellow of the playhead and a line in any colour near it
+   would vanish into it. */
+.bar-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--cursor);
+  pointer-events: none;
+}
+
 .measure-loop {
   background: var(--loop);
 }

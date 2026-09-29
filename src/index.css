@@ -6,6 +6,7 @@
   --grid-line: #201d18;
   --paper: #fffaf0;
   --active: #f4d35e;
+  --cursor: #d62828;
 
   /* Degree hues, lifted from guitar-chord-viewer's App.css so a note read in
      one app wears the same colour here. Two rules hold them together: an

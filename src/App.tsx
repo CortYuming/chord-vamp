@@ -318,6 +318,8 @@ function App() {
   // on a chart that has never been pointed at starts it at the top.
   const startRun = async () => {
     if (parsed.measures.length === 0) return;
+    // A fresh run, so the pauses of the last one no longer count.
+    pausesInBar.current = { bar: -1, count: 0 };
     const player = playerRef.current!;
     const hasLoop = loopStart !== null && loopEnd !== null;
     const useCountIn = currentSong.countIn && !hasLoop;
@@ -356,6 +358,13 @@ function App() {
     });
   };
 
+  // The pauses taken in the bar the playhead is on, since it got there. One is
+  // a breath, and Play carries on from where the music was held. A second in
+  // the same bar is someone going over it, and Play takes them back to its
+  // head -- counted in, when the song asks for a count -- so they come in on
+  // the downbeat rather than wherever the hand happened to stop it.
+  const pausesInBar = useRef<{ bar: number; count: number }>({ bar: -1, count: 0 });
+
   // The one button, and the space bar behind it: play, hold, go on from where
   // it was held. Getting back to the top is the rewind button's job.
   const handlePlay = async () => {
@@ -363,6 +372,10 @@ function App() {
     if (playState === 'playing') {
       player.pause();
       setPlayState('paused');
+      const held = pausesInBar.current;
+      pausesInBar.current = held.bar === currentMeasure
+        ? { bar: held.bar, count: held.count + 1 }
+        : { bar: currentMeasure, count: 1 };
       // Held during the count: the beats struck so far are given back, since
       // the count starts over on the way in.
       if (countInBeat !== null) setCountInBeat(0);
@@ -372,7 +385,7 @@ function App() {
       // Two beats counted and then a pause is not a count-in. Anything held
       // during the count goes back to the start of it rather than picking the
       // four up halfway.
-      if (countInBeat !== null) {
+      if (countInBeat !== null || pausesInBar.current.count >= 2) {
         await startRun();
         return;
       }
@@ -854,6 +867,8 @@ function App() {
         prefer={prefer}
         keyRoot={displayedKey}
         currentMeasure={currentMeasure}
+        playing={isPlaying}
+        position={playPosition}
         loopStart={loopStart}
         loopEnd={loopEnd}
         onMeasureDown={handleMeasureDown}

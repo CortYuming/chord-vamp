@@ -10,6 +10,10 @@ interface Props {
   prefer: Accidental;
   keyRoot: number;
   currentMeasure: number;
+  /** Whether the music is running, which is when the bar shows how far in it is. */
+  playing: boolean;
+  /** Where the music is, in fractional bars. See Player.position(). */
+  position: () => number | null;
   loopStart: number | null;
   loopEnd: number | null;
   onMeasureDown: (i: number) => void;
@@ -47,6 +51,10 @@ interface Props {
 // Above it sits the line just finished, and the rest of the window is what
 // comes next -- a reader is looking ahead, so most of the glass goes there.
 const PLAYHEAD_ANCHOR = 1 / 3;
+
+// The width of the line that crosses the playing bar. Kept in step with
+// .bar-cursor in App.css.
+const CURSOR_PX = 3;
 
 // Whether any part of a line is in the window.
 function onScreen(el: HTMLElement): boolean {
@@ -181,6 +189,8 @@ export function ChordGrid({
   prefer,
   keyRoot,
   currentMeasure,
+  playing,
+  position,
   loopStart,
   loopEnd,
   onMeasureDown,
@@ -276,6 +286,43 @@ export function ChordGrid({
     lastRow.current = row;
   }, [revealAt, rows, currentMeasure, topInset]);
 
+  // How far into the bar the music has got: a red line that crosses the
+  // playing bar in the time it takes to play it. Placed from the frame loop
+  // rather than from state, which moves only on the beat -- the point is to
+  // see the time between the beats go by. Hidden whenever there is no reading:
+  // held, counting in, or stopped.
+  const cursorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const hide = () => { if (cursorRef.current) cursorRef.current.hidden = true; };
+    if (!playing) {
+      hide();
+      return;
+    }
+    let frame = 0;
+    const place = () => {
+      frame = requestAnimationFrame(place);
+      const line = cursorRef.current;
+      if (!line) return;
+      const at = position();
+      // The line lives in the bar the page shows as playing, so a reading
+      // from any other bar -- the moment between the music moving on and the
+      // page catching up -- has nowhere to be drawn.
+      if (at === null || Math.floor(at) !== currentMeasure) {
+        line.hidden = true;
+        return;
+      }
+      const into = at - currentMeasure;
+      line.hidden = false;
+      // Kept inside the bar at the far end rather than riding over its line.
+      line.style.left = `calc(${into * 100}% - ${into * CURSOR_PX}px)`;
+    };
+    frame = requestAnimationFrame(place);
+    return () => {
+      cancelAnimationFrame(frame);
+      hide();
+    };
+  }, [playing, position, currentMeasure]);
+
   const loopLo = loopStart !== null && loopEnd !== null ? Math.min(loopStart, loopEnd) : null;
   const loopHi = loopStart !== null && loopEnd !== null ? Math.max(loopStart, loopEnd) : null;
 
@@ -362,6 +409,7 @@ export function ChordGrid({
                 />
                 {m.meterMark && <TimeSignature meter={m.meter} />}
                 {content}
+                {isCurrent && <div className="bar-cursor" ref={cursorRef} hidden />}
               </div>
             );
           })}
