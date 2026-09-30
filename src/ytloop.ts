@@ -3,7 +3,8 @@
 // yt-loop transcribes a video bar by bar, in a notation of its own that carries
 // fingerings, single notes, rests and ties. None of that is playable here, so
 // what it sends is the part that is: the bars as chord names, the seconds each
-// bar covers in the video, the key, and what the video is called. It is all in
+// bar covers in the video, the key, the bars its loop covers, and what the
+// video is called. It is all in
 // the link, written at the moment its button is pressed -- nothing is stored on
 // either side, which is why there is nothing to keep in step. A sheet edited
 // over there is sent again by pressing the button again.
@@ -36,6 +37,11 @@ export interface YtSource {
   keyRoot: number | null;
   /** Whether that tonic is being read as a minor key. */
   keyMinor: boolean;
+  /**
+   * The bars yt-loop was looping when the button was pressed, first and last,
+   * counted from 0 the way this app counts them. Null where it was not looping.
+   */
+  loop: [number, number] | null;
   title: string;
 }
 
@@ -55,6 +61,19 @@ function parseBarTimes(field: string): YtBar[] {
     const end = Number(text.slice(dash + 1));
     return { start, end: isFinite(end) && end > start ? end : null };
   });
+}
+
+/**
+ * The bars of yt-loop's loop, sent as the sheet numbers them -- `5-8`, or `5`
+ * for one bar. Anything else is no loop rather than a guess at one.
+ */
+function parseLoop(field: string): [number, number] | null {
+  const m = /^(\d+)(?:-(\d+))?$/.exec(field.trim());
+  if (!m) return null;
+  const from = Number(m[1]);
+  const to = m[2] === undefined ? from : Number(m[2]);
+  if (from < 1 || to < from) return null;
+  return [from - 1, to - 1];
 }
 
 /**
@@ -79,6 +98,7 @@ export function readYtSource(search: string): YtSource | null {
     bars: parseBarTimes(params.get('t') ?? ''),
     keyRoot: key ? key.tonic : null,
     keyMinor: key ? key.minor : false,
+    loop: parseLoop(params.get('loop') ?? ''),
     title: (params.get('title') ?? '').trim(),
   };
 }

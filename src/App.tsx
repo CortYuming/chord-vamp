@@ -36,6 +36,10 @@ const DEFAULT_CHORDS = '|F13|Bb9|F13|F13|Bb9|Bb9|F13|D7#9|G7|C7#9|F13 D7#9|G7#9|
 // rather than written in, and the shortcuts stay live over it.
 const TEXT_ENTRY_TYPES = new Set(['text', 'search', 'url', 'email', 'password', 'tel']);
 
+// The silence before the top on a rewind: yt-loop's own wait before it plays,
+// long enough to get the hands back to the first chord.
+const REWIND_GAP_MS = 1000;
+
 
 // A sheet handed over by yt-loop, read from the URL this page was opened with.
 // The link is the whole of the handover, and the page keeps the one it landed
@@ -44,9 +48,17 @@ const TEXT_ENTRY_TYPES = new Set(['text', 'search', 'url', 'email', 'password', 
 // Null for an ordinary visit, which is every other line below's "not in that
 // mode".
 const YT_SOURCE = readYtSource(window.location.search);
-// What this app was last set to for that video -- tempo, transposition, the
-// bars being worked on. The sheet is yt-loop's; these are ours.
+// What this app was last set to for that video -- tempo and transposition.
+// The sheet is yt-loop's; these are ours.
 const YT_PREFS = YT_SOURCE ? loadYtPrefs(YT_SOURCE.videoId) : null;
+// The bars yt-loop was looping, held to the sheet that came with them: a link
+// edited by hand can name bars the sheet does not have.
+const YT_LOOP = ((): [number, number] | null => {
+  if (!YT_SOURCE?.loop) return null;
+  const last = parseSong(YT_SOURCE.chords).measures.length - 1;
+  const [from, to] = YT_SOURCE.loop;
+  return from > last ? null : [from, Math.min(to, last)];
+})();
 
 function App() {
   const { songs, upsert, remove } = useSongs();
@@ -122,8 +134,8 @@ function App() {
   // How many beats the count runs for: the meter of the bar it counts into,
   // so a tune in 3/4 gets three and not four.
   const [countInBeats, setCountInBeats] = useState(() => beatsOfMeter(DEFAULT_METER));
-  const [loopStart, setLoopStart] = useState<number | null>(null);
-  const [loopEnd, setLoopEnd] = useState<number | null>(null);
+  const [loopStart, setLoopStart] = useState<number | null>(YT_LOOP?.[0] ?? null);
+  const [loopEnd, setLoopEnd] = useState<number | null>(YT_LOOP?.[1] ?? null);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
@@ -312,17 +324,20 @@ function App() {
     movePoint(lo + ((((from - lo + delta) % span) + span) % span));
   };
 
-  // From the playhead, with the count if the song asks for one. Pressing Play
-  // on a chart that has never been pointed at starts it at the top.
-  const startRun = async () => {
+  // From the playhead. Pressing Play on a chart that has never been pointed at
+  // starts it at the top. The count, when the song asks for one, is for coming
+  // in at the top of what is being played -- the loop's first bar, or the
+  // sheet's -- and for `recount`: a bar being gone over again, or a count that
+  // was cut off. A bar reached with the arrows or a click is picked up where it
+  // stands.
+  const startRun = async (recount: boolean) => {
     if (parsed.measures.length === 0) return;
     // A fresh run, so the pauses of the last one no longer count.
     pausesInBar.current = { bar: -1, count: 0 };
     const player = playerRef.current!;
-    const hasLoop = loopStart !== null && loopEnd !== null;
-    const useCountIn = currentSong.countIn && !hasLoop;
     const [lo, hi] = pointRange;
     const from = currentMeasure >= lo && currentMeasure <= hi ? currentMeasure : lo;
+    const useCountIn = currentSong.countIn && (recount || from === lo);
     setCurrentMeasure(from);
     setPlayState('playing');
     const into = parsed.measures[from];
@@ -384,21 +399,25 @@ function App() {
       // during the count goes back to the start of it rather than picking the
       // four up halfway.
       if (countInBeat !== null || pausesInBar.current.count >= 2) {
-        await startRun();
+        await startRun(true);
         return;
       }
       setPlayState('playing');
       await player.resume();
       return;
     }
-    await startRun();
+    await startRun(false);
   };
 
   // Back to the top of what is being played -- the loop's first bar when there
-  // is a loop -- without breaking whatever the player is doing: a run carries
-  // on from the top, and a held run stays held there, ready for Play.
+  // is a loop -- without breaking whatever the player is doing: a run goes on
+  // from the top after a second's breath, and a held run stays held there,
+  // ready for Play. The rewind button and A both come here.
   const handleRewind = () => {
-    movePoint(pointRange[0]);
+    const [lo, hi] = pointRange;
+    if (hi < lo) return;
+    setCurrentMeasure(lo);
+    playerRef.current?.rewind(lo, REWIND_GAP_MS);
   };
 
   useEffect(() => {
@@ -545,11 +564,7 @@ function App() {
       if (e.key === 'ArrowLeft') stepPoint(-1);
       else if (e.key === 'ArrowRight') stepPoint(1);
       else if (e.key === ' ') handlePlay();
-      // Back to the top of what is being played, the way yt-loop's own A does
-      // it: the playhead moves and the music goes with it, so a run started
-      // mid-chorus carries on from the first bar rather than stopping dead.
-      // The rewind button beside Play does the same.
-      else if (e.key === 'a' || e.key === 'A') movePoint(pointRange[0]);
+      else if (e.key === 'a' || e.key === 'A') handleRewind();
       else if (e.key === 'f' || e.key === 'F') setRevealTick(n => n + 1);
       else setShowSheet(v => !v);
     };
@@ -825,7 +840,6 @@ function App() {
               type="checkbox"
               checked={currentSong.countIn}
               onChange={(e) => update({ countIn: e.target.checked })}
-              disabled={hasLoop}
             />
             Count-in
           </label>
@@ -854,7 +868,6 @@ function App() {
       {hasLoop && (
         <div className="loop-status">
           Loop: bars {Math.min(loopStart!, loopEnd!) + 1} – {Math.max(loopStart!, loopEnd!) + 1}
-          <span className="loop-note">(count-in skipped)</span>
           <button onClick={clearLoop}>Clear</button>
         </div>
       )}
@@ -955,7 +968,7 @@ function App() {
       <footer className="footer">
         <div>Input: pipe-delimited measures <code>|C|G Am|F|</code> — multiple chords per bar separated by spaces</div>
         <div>Repeats: <code>%</code> (same as previous bar) / <code>%%</code> (same as bar two back) / <code>.</code> (repeat previous chord within the same bar, e.g. <code>|Bb13 . . E9|</code>)</div>
-        <div>Drag across bars to set a loop range. During playback, drag also stops. Count-in skipped while loop is active.</div>
+        <div>Drag across bars to set a loop range. During playback, drag also stops.</div>
         <div>Click a bar to put the playhead on it. Shortcuts: <code>←</code>/<code>→</code> playhead one bar / <code>Space</code> play or pause / <code>a</code> back to the first bar / <code>f</code> find the playhead / <code>e</code> sheet</div>
         <div>Written <strong>{prettyAccidentals(noteLabel(tonicRoot, keyPreferFor(tonicRoot)))}</strong> / Sounding <strong>{prettyAccidentals(noteLabel(displayedKey, prefer))}</strong> ({currentSong.transpose >= 0 ? '+' : ''}{currentSong.transpose})</div>
       </footer>
