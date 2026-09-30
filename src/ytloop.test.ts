@@ -12,6 +12,7 @@ const SOURCE: YtSource = {
   bars: [{ start: 43.5, end: 45.9 }, { start: 45.9, end: null }],
   keyRoot: 10,
   keyMinor: false,
+  loop: null,
   title: 'Four on Six',
 };
 
@@ -23,8 +24,20 @@ describe('readYtSource', () => {
       bars: [{ start: 0, end: 2.1 }, { start: 2.1, end: 4.2 }],
       keyRoot: 10,
       keyMinor: false,
+      loop: null,
       title: 'Four on Six',
     });
+  });
+
+  it('reads the loop as bars counted from 0', () => {
+    expect(readYtSource(LINK + '&loop=5-8')?.loop).toEqual([4, 7]);
+    expect(readYtSource(LINK + '&loop=3')?.loop).toEqual([2, 2]);
+  });
+
+  it('is left with no loop by one it cannot read', () => {
+    for (const bad of ['0-2', '8-5', 'x', '5-', '-5']) {
+      expect(readYtSource(LINK + `&loop=${bad}`)?.loop).toBeNull();
+    }
   });
 
   // An ordinary visit to the app, which is every link that is not one of these.

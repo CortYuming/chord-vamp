@@ -110,6 +110,9 @@ export class Player {
   private anchorTime = -1;
   private anchorSlot = 0;
   private cfg: PlayerConfig | null = null;
+  // The breath taken on the way back to the top -- see rewind(). Null when the
+  // music is not waiting on one.
+  private gapTimer: ReturnType<typeof setTimeout> | null = null;
 
   get playState(): PlayerState {
     return this.state;
@@ -158,6 +161,45 @@ export class Player {
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
+    // Held in the breath before the top: it simply stays held there.
+    if (this.cancelGap()) return;
+    this.hold();
+  }
+
+  async resume() {
+    if (this.state !== 'paused') return;
+    this.state = 'playing';
+    await this.carryOn();
+  }
+
+  /**
+   * Back to a bar with a second of silence before it, the way yt-loop gives you
+   * one to get the hands back to the top. The run stays a run -- Pause during
+   * the silence holds it there -- and it goes on without a count: that is kept
+   * for a run started from the top. A run still counting in just moves, since
+   * the count is already the breath.
+   */
+  rewind(sourceIndex: number, gapMs: number) {
+    if (this.state !== 'playing' || this.countInSlotsLeft > 0) {
+      this.seek(sourceIndex);
+      return;
+    }
+    if (!this.cancelGap()) this.hold();
+    this.seek(sourceIndex);
+    this.gapTimer = setTimeout(() => {
+      this.gapTimer = null;
+      void this.carryOn();
+    }, gapMs);
+  }
+
+  private cancelGap(): boolean {
+    if (this.gapTimer === null) return false;
+    clearTimeout(this.gapTimer);
+    this.gapTimer = null;
+    return true;
+  }
+
+  private hold() {
     Tone.getTransport().pause();
     // The note under the pause was struck for a beat that has stopped passing.
     // Let it go rather than leave it ringing over a still page.
@@ -168,12 +210,10 @@ export class Player {
     this.draw.clear();
   }
 
-  async resume() {
-    if (this.state !== 'paused') return;
+  private async carryOn() {
     // A context suspended while the page sat paused has to be woken before the
     // transport will move again.
     await Tone.start();
-    this.state = 'playing';
     // The clock ran on while the music stood still, so the line from the old
     // anchor no longer describes it.
     this.anchorTime = -1;
@@ -371,6 +411,7 @@ export class Player {
 
   private disposeInternal() {
     this.state = 'stopped';
+    this.cancelGap();
     this.anchorTime = -1;
     this.stopDrawing();
     this.draw.clear();

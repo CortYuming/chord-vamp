@@ -15,13 +15,13 @@ https://cortyuming.github.io/chord-vamp/
 - Time signatures written at the head of a bar: `|T34 Cm7|`, in force until another one is written
 - Four measures to a line with iReal Pro–style borders, and fewer on a line whose chords would otherwise be drawn too narrow to read — a busy bar, or a narrow window
 - Bass root note played on quarter notes via Web Audio
-- Count-in of one bar before playback — as many clicks as the bar it counts into has beats; skipped on loop restart
+- Count-in of one bar — as many clicks as the bar it counts into has beats — when playback starts at the top of what is playing (the loop's first bar where there is a loop), and when a bar is paused twice and played again. A bar reached with `←` `→` or a click starts without one, and a loop going round again carries straight on
 - Drag across measures to set a loop range
 - Pick a target Key, then **Set** to read the chart in it — the chords are left as they are — or **Set and transpose** to rewrite every chord into it. ↩ Undo takes back the last one, chords and all
 - Accidentals follow the key being read: a flat key is spelled with flats, a sharp key with sharps
 - Save named songs to localStorage with BPM and transpose baked in
 - Tap tempo
-- Keyboard: `Space` play / pause, `←` `→` playhead one bar, `a` back to the first bar of what is playing — the loop's first bar where there is a loop, and the music carries on from there — `f` scrolls the playhead's line back into view when it has been left off screen, `e` the sheet box
+- Keyboard: `Space` play / pause, `←` `→` playhead one bar, `a` back to the first bar of what is playing — the loop's first bar where there is a loop, and the music carries on from there after a second's silence, without a count — `f` scrolls the playhead's line back into view when it has been left off screen, `e` the sheet box
 - Note names are drawn with the signs, `B♭7` and `C♯m7♭5`, as is the numeral over them. What is typed, stored and put in a link stays ASCII: `Bb7` is what the sheet box holds and what travels
 - The transport strip stays at the top of the window while the chart is scrolled, so Play, the tempo and the parts are where they were
 - Opens a sheet transcribed in [yt-loop](https://cortyuming.github.io/yt-loop/): its bars arrive in the link, and every bar number leads back to the second of the video it came from
@@ -70,11 +70,12 @@ rather than rounded onto them, which leaves out only an odd count of sixteenths:
 
 [yt-loop](https://cortyuming.github.io/yt-loop/) transcribes a video bar by bar.
 Its **chord-vamp ↗** button opens the sheet here: the bars, the seconds each one
-covers, the key and the video's title all travel in the link, written at the
-moment the button is pressed.
+covers, the key, the bars yt-loop is looping and the video's title all travel
+in the link, written at the moment the button is pressed. A sheet sent while
+yt-loop is looping opens here with the same bars looped.
 
 ```
-?v=<videoId>&k=<bars>&t=<times>&key=<key>&title=<video title>
+?v=<videoId>&k=<bars>&t=<times>&key=<key>&loop=<bars>&title=<video title>
 ```
 
 Each bar arrives written over its eighth-note slots — `|Bb7 . . . F7+5+9 . . .|`
