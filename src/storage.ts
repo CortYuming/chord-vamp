@@ -149,15 +149,15 @@ export function savePrefs(prefs: Prefs): void {
 // ---------------------------------------------------------------------------
 // The sheet itself is never stored here: it belongs to yt-loop, arrives in a
 // link, and is read and not written -- see ytloop.ts. What is stored is this
-// app's own side of it, per video: the tempo the passage is being practised at,
-// how far it has been moved, and which bars are being worked on. A tune picked
-// up next week starts where it was left rather than at the defaults, and the
-// transcription it is read from stays the one copy there is.
+// app's own side of it, per video: the tempo the passage is being practised at
+// and how far it has been moved. A tune picked up next week starts where it was
+// left rather than at the defaults, and the transcription it is read from stays
+// the one copy there is. The loop range is not kept: it is the bars being gone
+// over this sitting, and one found waiting on the next visit skips the count-in
+// and greys out its box with nothing on screen to say why.
 export interface YtPrefs {
   bpm: number;
   transpose: number;
-  loopStart: number | null;
-  loopEnd: number | null;
 }
 
 const YT_PREFS_KEY = 'chord-vamp:ytloop:v1';
@@ -188,8 +188,6 @@ export function loadYtPrefs(videoId: string): YtPrefs | null {
   return {
     bpm: bpm >= 20 && bpm <= 400 ? Math.round(bpm) : 85,
     transpose: Number.isInteger(transpose) ? transpose : 0,
-    loopStart: typeof found.loopStart === 'number' ? found.loopStart : null,
-    loopEnd: typeof found.loopEnd === 'number' ? found.loopEnd : null,
   };
 }
 

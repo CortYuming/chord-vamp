@@ -122,8 +122,8 @@ function App() {
   // How many beats the count runs for: the meter of the bar it counts into,
   // so a tune in 3/4 gets three and not four.
   const [countInBeats, setCountInBeats] = useState(() => beatsOfMeter(DEFAULT_METER));
-  const [loopStart, setLoopStart] = useState<number | null>(YT_PREFS?.loopStart ?? null);
-  const [loopEnd, setLoopEnd] = useState<number | null>(YT_PREFS?.loopEnd ?? null);
+  const [loopStart, setLoopStart] = useState<number | null>(null);
+  const [loopEnd, setLoopEnd] = useState<number | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark' | null>(() => loadPrefs().theme);
   const [volume, setVolume] = useState<number>(() => loadPrefs().volume);
   const [swing, setSwing] = useState<boolean>(() => loadPrefs().swing);
@@ -184,17 +184,15 @@ function App() {
   }, []);
 
   // Our side of a yt-loop sheet, kept per video: the tempo it is being worked
-  // at, how far it has been moved, and the bars being gone over. Next week the
-  // same button opens it where it was left instead of at 85 and no loop.
+  // at and how far it has been moved. Next week the same button opens it where
+  // it was left instead of at 85. The loop is not among them -- see YtPrefs.
   useEffect(() => {
     if (!YT_SOURCE) return;
     saveYtPrefs(YT_SOURCE.videoId, {
       bpm: currentSong.bpm,
       transpose: currentSong.transpose,
-      loopStart,
-      loopEnd,
     });
-  }, [currentSong.bpm, currentSong.transpose, loopStart, loopEnd]);
+  }, [currentSong.bpm, currentSong.transpose]);
 
   // Written key: what the sheet says, before transposition.
   const tonicRoot = useMemo(
